@@ -37,11 +37,13 @@ async function idbSet(val) {
 
 async function makeLocal() {
   const initSqlJs = (await import('sql.js')).default
-  const SQL = await initSqlJs({ locateFile: () => '/sql-wasm.wasm' })
-  const saved = await idbGet()
+  // In a browser the wasm is served from /public; under Node (tests) sql.js finds its own wasm.
+  const inBrowser = typeof indexedDB !== 'undefined'
+  const SQL = await initSqlJs(inBrowser ? { locateFile: () => '/sql-wasm.wasm' } : {})
+  const saved = inBrowser ? await idbGet() : null
   const db = saved ? new SQL.Database(saved) : new SQL.Database()
   let timer
-  const persist = () => { clearTimeout(timer); timer = setTimeout(() => idbSet(db.export()), 250) }
+  const persist = () => { if (!inBrowser) return; clearTimeout(timer); timer = setTimeout(() => idbSet(db.export()), 250) }
   return {
     async all(sql, args) {
       const st = db.prepare(sql)
