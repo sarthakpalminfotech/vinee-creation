@@ -31,7 +31,12 @@ export default function InventoryPage() {
   useEffect(() => {
     let live = true;
     setLoading(true);
-    Promise.all([repo.inventoryCounts(), repo.inventoryList(view, f)])
+    // filters that are not shown for this view must not silently hide stock
+    const eff = { ...f };
+    if (view === 'godown') { eff.mill_id = ''; eff.shade_id = ''; }
+    if (view === 'mill') eff.shade_id = '';
+    if (view !== 'godown') eff.location_id = '';
+    Promise.all([repo.inventoryCounts(), repo.inventoryList(view, eff)])
       .then(([c, r]) => { if (live) { setCounts(c); setRows(r); setError(''); } })
       .catch((e) => live && setError(e.message))
       .finally(() => live && setLoading(false));

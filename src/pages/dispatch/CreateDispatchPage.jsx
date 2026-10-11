@@ -49,9 +49,10 @@ export default function CreateDispatchPage() {
 
   const challans = useMemo(() => {
     const m = new Map();
-    availableTakas.forEach(t => { if (!m.has(t.receipt_id)) m.set(t.receipt_id, `${t.challan_no} · ${t.weaver_name} (${availableTakas.filter(x => x.receipt_id === t.receipt_id).length} in godown)`); });
+    const pool = qualityFilter ? availableTakas.filter(t => t.quality_id.toString() === qualityFilter) : availableTakas;
+    pool.forEach(t => { if (!m.has(t.receipt_id)) m.set(t.receipt_id, `${t.challan_no} · ${t.weaver_name} (${pool.filter(x => x.receipt_id === t.receipt_id).length} in godown)`); });
     return [...m.entries()];
-  }, [availableTakas]);
+  }, [availableTakas, qualityFilter]);
 
   const filteredTakas = useMemo(() => availableTakas.filter(t =>
     (!qualityFilter || t.quality_id.toString() === qualityFilter) && (!challanFilter || t.receipt_id.toString() === challanFilter)
@@ -137,7 +138,7 @@ export default function CreateDispatchPage() {
                 <h3 className="font-semibold text-slate-900">Select Takas</h3>
                 <Badge variant="primary">{availableTakas.length} in Godown</Badge>
               </div>
-              <Select className="w-full sm:w-48 bg-white" value={qualityFilter} onChange={e => setQualityFilter(e.target.value)}>
+              <Select className="w-full sm:w-48 bg-white" value={qualityFilter} onChange={e => { setQualityFilter(e.target.value); setChallanFilter(''); }}>
                 <option value="">All Qualities</option>
                 {qualities.map(q => <option key={q.id} value={q.id}>{q.name}</option>)}
               </Select>

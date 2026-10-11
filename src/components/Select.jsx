@@ -259,13 +259,17 @@ export const Select = React.forwardRef(({ className = '', error, children, value
       const opt = { value: val, label: label };
       if (val === "" || val == null) {
         placeholder = label;
+        // A non-required select keeps its empty option ("All qualities", "Select mill…") selectable,
+        // so a filter can always be reset to "all" after something was chosen.
+        if (!required) options.unshift({ value: '', label });
       } else {
         options.push(opt);
       }
     }
   });
 
-  const current = options.find((o) => String(o.value) === String(value));
+  const empty = value === '' || value == null;
+  const current = empty ? null : options.find((o) => String(o.value) === String(value));
   const text = current?.label ?? null;
 
   return (
@@ -278,10 +282,10 @@ export const Select = React.forwardRef(({ className = '', error, children, value
       options={options}
       placeholder={placeholder}
       triggerText={text}
-      isSelected={(v) => String(v) === String(value)}
+      isSelected={(v) => (empty ? v === '' : String(v) === String(value))}
       onPick={(o) => {
         if (onChange) {
-          onChange({ target: { value: o.value } });
+          onChange({ target: { value: String(o.value) } });
         }
       }}
       closeOnPick

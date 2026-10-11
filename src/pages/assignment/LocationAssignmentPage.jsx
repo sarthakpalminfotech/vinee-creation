@@ -33,7 +33,7 @@ export default function LocationAssignmentPage() {
   useEffect(() => { load(); }, []);
 
   const qualities = useMemo(() => [...new Map(takas.map((t) => [t.quality_id, t.nick_name])).entries()], [takas]);
-  const challans = useMemo(() => [...new Map(takas.map((t) => [t.receipt_id, `${t.challan_no} · ${t.weaver_name}`])).entries()], [takas]);
+  const challans = useMemo(() => [...new Map(takas.filter((t) => !qualityFilter || String(t.quality_id) === qualityFilter).map((t) => [t.receipt_id, `${t.challan_no} · ${t.weaver_name}`])).entries()], [takas, qualityFilter]);
 
   const filtered = useMemo(() => takas.filter((t) => {
     if (qualityFilter && String(t.quality_id) !== qualityFilter) return false;
@@ -105,7 +105,7 @@ export default function LocationAssignmentPage() {
 
       <Card>
         <div className="p-4 border-b border-slate-100 flex flex-wrap gap-3 items-center bg-slate-50/50">
-          <Select className="w-44" value={qualityFilter} onChange={(e) => setQualityFilter(e.target.value)}>
+          <Select className="w-44" value={qualityFilter} onChange={(e) => { setQualityFilter(e.target.value); setChallanFilter(''); }}>
             <option value="">All qualities</option>
             {qualities.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
           </Select>
@@ -114,8 +114,8 @@ export default function LocationAssignmentPage() {
             {challans.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
           </Select>
           <Select className="w-48" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
+            <option value="ALL">All racks (assigned + unassigned)</option>
             <option value="UNASSIGNED">Unassigned only</option>
-            <option value="ALL">All racks</option>
             {locations.map((l) => <option key={l.id} value={l.id}>{repo.locLabel(l.shop, l.rack)}</option>)}
           </Select>
           <Input className="w-40" placeholder="Search taka…" value={search} onChange={(e) => setSearch(e.target.value)} />

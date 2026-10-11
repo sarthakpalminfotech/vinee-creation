@@ -9,3 +9,6 @@ Verified: `npm test` (56 checks incl. the §4 scenario), `npm run build`, browse
 Not verified (and why): Turso code path (`tx()` on libSQL) — no test database allowed; printing output on paper (only on-screen layout checked); phone-width layouts only checked via CSS review; mill-facing PDFs are browser print, not generated files.
 
 Next / for the owner: delete `test-db.js` and rotate its Turso token; answer the open questions in `docs/SPEC.md`; add `vercel.json` SPA rewrite before deploying; consider moving DB calls behind an API before production (token is in the browser bundle).
+
+## Session 2 — filters (2026-10-12)
+Fixed every dropdown filter: `Select` now returns string values (filters compared with strings, so quality/challan filters matched nothing) and keeps its empty option ("All …") selectable so a filter can be reset to all. Dependent challan filters follow the quality filter; inventory ignores filters that are hidden in the current view. Checked in the browser: mill-challan quality filter, rack page quality/rack filters, inventory shade filter + view switch.
