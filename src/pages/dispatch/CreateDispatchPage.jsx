@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader, Card, Button, Select, Input, Field, Table, Th, Td, Empty, Badge, Drawer } from '../../components/ui';
+import { PageHeader, Card, Button, Select, Input, Field, Table, Th, Td, Empty, Badge, Drawer, Alert, Pager, usePaged, useAction } from '../../components/ui';
+import { fmtM } from '../../lib/format';
 import { ArrowLeft, Save, ShieldCheck } from 'lucide-react';
 import * as repo from '../../db/repo';
 
@@ -18,6 +19,9 @@ export default function CreateDispatchPage() {
   
   const [selectedTakaIds, setSelectedTakaIds] = useState(new Set());
   const [qualityFilter, setQualityFilter] = useState('');
+  const [challanFilter, setChallanFilter] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const { busy, error, run } = useAction();
 
   useEffect(() => {
     async function load() {
@@ -29,7 +33,7 @@ export default function CreateDispatchPage() {
         setMills(allMills);
         setAvailableTakas(godownTakas);
       } catch (e) {
-        console.error(e);
+        setLoadError(e.message);
       } finally {
         setLoading(false);
       }
@@ -43,10 +47,18 @@ export default function CreateDispatchPage() {
     return Array.from(qs.entries()).map(([id, name]) => ({ id, name }));
   }, [availableTakas]);
 
-  const filteredTakas = useMemo(() => {
-    if (!qualityFilter) return availableTakas;
-    return availableTakas.filter(t => t.quality_id.toString() === qualityFilter);
-  }, [availableTakas, qualityFilter]);
+  const challans = useMemo(() => {
+    const m = new Map();
+    availableTakas.forEach(t => { if (!m.has(t.receipt_id)) m.set(t.receipt_id, `${t.challan_no} · ${t.weaver_name} (${availableTakas.filter(x => x.receipt_id === t.receipt_id).length} in godown)`); });
+    return [...m.entries()];
+  }, [availableTakas]);
+
+  const filteredTakas = useMemo(() => availableTakas.filter(t =>
+    (!qualityFilter || t.quality_id.toString() === qualityFilter) && (!challanFilter || t.receipt_id.toString() === challanFilter)
+  ), [availableTakas, qualityFilter, challanFilter]);
+  const paged = usePaged(filteredTakas, 100);
+  const picked = useMemo(() => availableTakas.filter(t => selectedTakaIds.has(t.id)), [availableTakas, selectedTakaIds]);
+  const pickList = useMemo(() => repo.groupPickList(picked), [picked]);
 
   const toggleTaka = (id) => {
     const next = new Set(selectedTakaIds);
@@ -71,27 +83,21 @@ export default function CreateDispatchPage() {
     setSelectedTakaIds(new Set());
   };
 
-  const handleSave = async (e) => {
+  const handleSave = (e) => {
     e.preventDefault();
-    try {
+    run(async () => {
       if (!formData.mill_id) throw new Error('Please select a mill');
-      if (selectedTakaIds.size === 0) throw new Error('Please select at least one taka to dispatch');
-      
-      const id = await repo.createDispatch({
-        ...formData,
-        taka_ids: Array.from(selectedTakaIds)
-      });
+      if (selectedTakaIds.size === 0) throw new Error('Please select at least one taka to send');
+      const id = await repo.createDispatch({ ...formData, taka_ids: Array.from(selectedTakaIds) });
       navigate(`/dispatch/${id}`);
-    } catch (err) {
-      alert(err.message);
-    }
+    });
   };
 
   const selectedMeters = availableTakas
     .filter(t => selectedTakaIds.has(t.id))
     .reduce((sum, t) => sum + Number(t.grey_meter), 0);
 
-  if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
+  if (loading || loadError) return <Drawer isOpen onClose={() => navigate('/dispatch')}>{loading ? <div className="p-12 text-center text-slate-500">Loading...</div> : <Alert>{loadError}</Alert>}</Drawer>;
 
   return (
     <Drawer isOpen={true} onClose={() => navigate('/dispatch')}>
@@ -135,6 +141,10 @@ export default function CreateDispatchPage() {
                 <option value="">All Qualities</option>
                 {qualities.map(q => <option key={q.id} value={q.id}>{q.name}</option>)}
               </Select>
+              <Select className="w-full sm:w-64 bg-white" value={challanFilter} onChange={e => setChallanFilter(e.target.value)}>
+                <option value="">All received challans</option>
+                {challans.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+              </Select>
             </div>
             
             <div className="p-3 border-b border-slate-100 flex flex-wrap gap-2 items-center bg-white">
@@ -163,7 +173,7 @@ export default function CreateDispatchPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTakas.map(t => (
+                  {paged.rows.map(t => (
                     <tr key={t.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => toggleTaka(t.id)}>
                       <Td className="text-center">
                         <input 
@@ -175,9 +185,9 @@ export default function CreateDispatchPage() {
                       </Td>
                       <Td className="font-medium text-slate-900">{t.challan_no}/{t.taka_no}</Td>
                       <Td>{t.nick_name}</Td>
-                      <Td>{t.grey_meter} m</Td>
+                      <Td>{fmtM(t.grey_meter)} m</Td>
                       <Td>
-                        {t.location_id ? <span className="text-slate-600 text-sm">Shop {t.shop}-{t.rack}</span> : <span className="text-amber-600 text-xs font-medium">Unassigned</span>}
+                        {t.location_id ? <span className="text-slate-600 text-sm">{repo.locLabel(t.shop, t.rack)}</span> : <span className="text-amber-600 text-xs font-medium">Unassigned</span>}
                       </Td>
                     </tr>
                   ))}
@@ -191,6 +201,7 @@ export default function CreateDispatchPage() {
                 </tbody>
               </Table>
             </div>
+            <Pager paged={paged} />
           </Card>
         </div>
 
@@ -211,11 +222,26 @@ export default function CreateDispatchPage() {
                 </div>
               </div>
             </div>
+
+            {pickList.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Picking list (where to take from)</div>
+                <div className="space-y-2 max-h-64 overflow-y-auto text-sm">
+                  {pickList.map(g => (
+                    <div key={g.key} className="bg-white rounded-lg border border-slate-200 p-2">
+                      <div className="flex justify-between font-medium"><span>{g.label}</span><span>{g.count} tk · {fmtM(g.meters)} m</span></div>
+                      <div className="text-xs text-slate-500 mt-1 break-words">{g.takas.map(t => `${t.challan_no}/${t.taka_no}`).join(', ')}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <Alert className="mt-4">{error}</Alert>
             
             <div className="mt-8 pt-6 border-t border-slate-200">
-              <Button type="submit" className="w-full h-12 text-base shadow-sm" disabled={selectedTakaIds.size === 0 || !formData.mill_id}>
+              <Button type="submit" className="w-full h-12 text-base shadow-sm" disabled={busy || selectedTakaIds.size === 0 || !formData.mill_id}>
                 <ShieldCheck className="w-5 h-5 mr-2" />
-                Dispatch to Mill
+                {busy ? 'Saving…' : 'Send to Mill'}
               </Button>
             </div>
           </Card>

@@ -27,15 +27,21 @@ import OrderDetailPage from './pages/orders/OrderDetailPage';
 import FoldingPage from './pages/folding/FoldingPage';
 import LocationAssignmentPage from './pages/assignment/LocationAssignmentPage';
 
+import InventoryPage from './pages/inventory/InventoryPage';
+import AvailabilityPage from './pages/orders/AvailabilityPage';
+import ShrinkagePage from './pages/reports/ShrinkagePage';
+
 import DashboardPage from './pages/DashboardPage';
 
 export default function App() {
   const [ready, setReady] = useState(false);
+  const [startError, setStartError] = useState('');
 
   useEffect(() => {
-    ensureSeed().then(() => setReady(true)).catch(console.error);
+    ensureSeed().then(() => setReady(true)).catch((e) => { console.error(e); setStartError(e.message); });
   }, []);
 
+  if (startError) return <div className="flex h-screen items-center justify-center p-6 text-center text-red-600">Could not open the database: {startError}</div>;
   if (!ready) return <div className="flex h-screen items-center justify-center text-slate-500">Loading App...</div>;
 
   return (
@@ -67,6 +73,9 @@ export default function App() {
             <Route path=":id/receive" element={<ReceiveProgramPage />} />
           </Route>
 
+          <Route path="inventory" element={<InventoryPage />} />
+          <Route path="availability" element={<AvailabilityPage />} />
+          <Route path="reports/shrinkage" element={<ShrinkagePage />} />
           <Route path="folding" element={<FoldingPage />} />
           <Route path="assignment" element={<LocationAssignmentPage />} />
 

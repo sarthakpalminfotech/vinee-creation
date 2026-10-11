@@ -7,11 +7,13 @@ import * as repo from '../db/repo';
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    repo.dashboard().then(setData).catch(console.error);
+    repo.dashboard().then(setData).catch((e) => setError(e.message));
   }, []);
 
+  if (error) return <div className="p-12 text-center text-red-600">{error}</div>;
   if (!data) return <div className="p-12 text-center text-slate-500">Loading...</div>;
 
   const { status, openPoCount, pendingPoM, wastage, openOrders, activity } = data;
@@ -55,7 +57,7 @@ export default function DashboardPage() {
           sub={`${status.GODOWN_GREY?.m.toLocaleString() || 0} m`} 
           icon={Package} 
           colorClass="bg-slate-100 text-slate-600" 
-          link="/dispatch"
+          link="/inventory?view=godown"
         />
         <StatCard 
           title="In Dyeing" 
@@ -63,15 +65,15 @@ export default function DashboardPage() {
           sub={`${status.IN_DYEING?.m.toLocaleString() || 0} m`} 
           icon={Scissors} 
           colorClass="bg-violet-50 text-violet-600" 
-          link="/programs"
+          link="/inventory?view=dyeing"
         />
         <StatCard 
-          title="Ready Folded" 
+          title="Folded (ready)" 
           value={status.FOLDED?.c || 0} 
           sub={`${status.FOLDED?.m.toLocaleString() || 0} m`} 
           icon={CheckCircle} 
           colorClass="bg-emerald-50 text-emerald-600" 
-          link="/orders"
+          link="/inventory?view=finished"
         />
       </div>
 
@@ -139,7 +141,7 @@ export default function DashboardPage() {
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-500">Weaver Loss</span>
+                    <span className="text-slate-500">Weaver (vs nominal length)</span>
                     <span className="font-medium text-slate-900">{wastage.weaver.toFixed(2)}%</span>
                   </div>
                   <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">

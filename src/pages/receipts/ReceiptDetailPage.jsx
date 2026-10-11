@@ -59,7 +59,8 @@ export default function ReceiptDetailPage() {
             </div>
             <div className="bg-slate-50 p-3 rounded-lg">
               <div className="text-xs text-slate-500 mb-1">Quality</div>
-              <div className="font-semibold text-slate-900">{receipt.nick_name}</div>
+              <div className="font-semibold text-slate-900">{receipt.original_name}</div>
+              <div className="text-xs text-slate-500">nickname: {receipt.nick_name}</div>
             </div>
             <div className="bg-slate-50 p-3 rounded-lg">
               <div className="text-xs text-slate-500 mb-1">Destination</div>
@@ -108,7 +109,7 @@ export default function ReceiptDetailPage() {
               <tr>
                 <Th>Taka No</Th>
                 <Th>Meters</Th>
-                <Th>Nominal Diff</Th>
+                <Th>vs nominal</Th>
                 <Th>Status</Th>
                 <Th>Location/Mill</Th>
               </tr>
@@ -132,7 +133,7 @@ export default function ReceiptDetailPage() {
                   </Td>
                   <Td>
                     {t.status === 'GODOWN_GREY' ? (
-                      t.location_id ? <span className="text-sm text-slate-700">Shop {t.shop} - {t.rack}</span> : <span className="text-xs text-amber-600 font-medium">Unassigned</span>
+                      t.location_id ? <span className="text-sm text-slate-700">{repo.locLabel(t.shop, t.rack)}</span> : <span className="text-xs text-amber-600 font-medium">Unassigned</span>
                     ) : (
                       t.mill_id ? <span className="text-sm text-slate-700">{t.mill_name}</span> : '-'
                     )}

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PageHeader, Card, Button, Input, Field, Table, Th, Td, Drawer } from '../../components/ui';
-import { ArrowLeft, Save, CheckCircle, ClipboardPaste } from 'lucide-react';
+import { PageHeader, Card, Button, Input, Field, Table, Th, Td, Drawer, Alert, useAction } from '../../components/ui';
+import { fmtM } from '../../lib/format';
+import { ArrowLeft, CheckCircle, ClipboardPaste } from 'lucide-react';
 import * as repo from '../../db/repo';
 
 export default function ReceiveProgramPage() {
@@ -17,6 +18,8 @@ export default function ReceiveProgramPage() {
   });
 
   const [rows, setRows] = useState([]);
+  const [loadError, setLoadError] = useState('');
+  const { busy, error, setError, run } = useAction();
   const [pasteMode, setPasteMode] = useState(false);
   const [pasteText, setPasteText] = useState('');
 
@@ -36,7 +39,7 @@ export default function ReceiveProgramPage() {
         }));
         setRows(pending);
       } catch (e) {
-        console.error(e);
+        setLoadError(e.message);
       } finally {
         setLoading(false);
       }
@@ -54,10 +57,9 @@ export default function ReceiveProgramPage() {
 
   const handleProcessPaste = () => {
     const meters = pasteText.trim().split(/[\s,]+/).map(m => parseFloat(m)).filter(m => !isNaN(m) && m > 0);
-    if (meters.length === 0) return alert('No valid numbers found to paste.');
-    if (meters.length > rows.length) {
-      alert(`You pasted ${meters.length} meters, but only ${rows.length} takas are pending. Only the first ${rows.length} will be populated.`);
-    }
+    if (meters.length === 0) return setError('No valid numbers found to paste.');
+    if (meters.length > rows.length) setError(`You pasted ${meters.length} meters but only ${rows.length} takas are pending - the extra ones were ignored.`);
+    else setError('');
 
     setRows(rows.map((r, i) => {
       if (i < meters.length) {
@@ -70,29 +72,20 @@ export default function ReceiveProgramPage() {
     setPasteMode(false);
   };
 
-  const handleSave = async (e) => {
+  const handleSave = (e) => {
     e.preventDefault();
-    try {
+    run(async () => {
       const selected = rows.filter(r => r.selected);
       if (selected.length === 0) throw new Error('Select at least one taka to receive.');
       for (const r of selected) {
-        if (!r.finished_meter || Number(r.finished_meter) <= 0) {
-          throw new Error(`Finished meter is required for selected taka ${r.taka_no}.`);
-        }
+        if (!r.finished_meter || Number(r.finished_meter) <= 0) throw new Error(`Finished meter is required for selected taka ${r.taka_no}.`);
       }
-
-      await repo.createFinishedReceipt({
-        program_id: id,
-        ...formData,
-        rows: selected
-      });
+      await repo.createFinishedReceipt({ program_id: id, ...formData, rows: selected });
       navigate(`/programs/${id}`);
-    } catch (err) {
-      alert(err.message);
-    }
+    });
   };
 
-  if (loading || !program) return <div className="p-12 text-center text-slate-500">Loading...</div>;
+  if (loading || loadError || !program) return <Drawer isOpen onClose={() => navigate('/programs')}>{loadError ? <Alert>{loadError}</Alert> : <div className="p-12 text-center text-slate-500">Loading...</div>}</Drawer>;
 
   const totalGrey = rows.filter(r => r.selected).reduce((s, r) => s + Number(r.mill_grey_meter || 0), 0);
   const totalFin = rows.filter(r => r.selected).reduce((s, r) => s + Number(r.finished_meter || 0), 0);
@@ -123,6 +116,18 @@ export default function ReceiveProgramPage() {
           </div>
         </Card>
 
+        <Card className="p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Pending per shade</div>
+          <div className="flex flex-wrap gap-3 text-sm">
+            {program.lines.map(l => (
+              <span key={l.id} className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
+                <span className="w-3 h-3 rounded-sm border border-slate-200" style={{ backgroundColor: l.hex }} />
+                Shade {l.shade_no}: <strong>{l.taka_count - l.received}</strong> pending of {l.taka_count}
+              </span>
+            ))}
+          </div>
+        </Card>
+
         <Card>
           <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-xl">
             <h3 className="font-semibold text-slate-900">Pending Takas in Dyeing</h3>
@@ -132,7 +137,8 @@ export default function ReceiveProgramPage() {
               </Button>
               <div className="w-px h-4 bg-slate-200"></div>
               <div>Selected: <span className="text-primary-600">{rows.filter(r => r.selected).length}</span></div>
-              <div>Shrinkage: <span className={shrinkage > 10 ? 'text-red-500' : 'text-slate-600'}>{shrinkage}%</span></div>
+              <div>Grey {fmtM(totalGrey)} → Finished {fmtM(totalFin)} m</div>
+              <div>Shrinkage: <span className={shrinkage > 10 ? 'text-red-500' : 'text-slate-600'}>{fmtM(totalGrey - totalFin)} m ({shrinkage}%)</span></div>
             </div>
           </div>
           
@@ -166,6 +172,7 @@ export default function ReceiveProgramPage() {
                 <Th className="text-right">Grey M</Th>
                 <Th className="text-right">Mill Grey M</Th>
                 <Th className="text-right w-32">Finished M *</Th>
+                <Th className="text-right">Loss m</Th>
               </tr>
             </thead>
             <tbody>
@@ -190,20 +197,22 @@ export default function ReceiveProgramPage() {
                     <Td className="text-right">
                       <Input type="number" step="0.01" className="w-24 ml-auto text-right h-8 border-primary-300 focus:border-primary-500" value={r.finished_meter} onChange={e => updateRow(r.id, 'finished_meter', e.target.value)} />
                     </Td>
+                    <Td className="text-right text-slate-600">{r.finished_meter !== '' && r.mill_grey_meter !== '' ? fmtM(Number(r.mill_grey_meter) - Number(r.finished_meter)) : '-'}</Td>
                   </tr>
                 );
               })}
               {rows.length === 0 && (
-                <tr><Td colSpan={6} className="py-8 text-center text-slate-500">No pending takas to receive for this program.</Td></tr>
+                <tr><Td colSpan={7} className="py-8 text-center text-slate-500">No pending takas to receive for this program.</Td></tr>
               )}
             </tbody>
           </Table>
         </Card>
 
+        <Alert>{error}</Alert>
         <div className="flex justify-end">
-          <Button type="submit" size="lg" disabled={rows.filter(r => r.selected).length === 0}>
+          <Button type="submit" size="lg" disabled={busy || rows.filter(r => r.selected).length === 0}>
             <CheckCircle className="w-5 h-5 mr-2" />
-            Receive Selected
+            {busy ? 'Saving…' : 'Receive Selected'}
           </Button>
         </div>
       </form>

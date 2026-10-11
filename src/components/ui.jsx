@@ -1,6 +1,7 @@
-import React from 'react';
-import { Search, Plus, X, ChevronRight, AlertCircle, Edit, Trash2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Search, Plus, X, ChevronRight, ChevronLeft, AlertCircle, Edit, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 
 export function Button({ variant = 'primary', size = 'md', className = '', children, ...props }) {
   const base = "inline-flex items-center justify-center font-medium transition-colors rounded-lg disabled:opacity-50 disabled:pointer-events-none";
@@ -25,7 +26,7 @@ export function Button({ variant = 'primary', size = 'md', className = '', child
 
 export function Card({ className = '', children, ...props }) {
   return (
-    <div className={`bg-white rounded-xl shadow-card border border-slate-200 overflow-hidden ${className}`} {...props}>
+    <div className={`bg-white rounded-xl shadow-soft border border-slate-200 overflow-hidden ${className}`} {...props}>
       {children}
     </div>
   );
@@ -77,16 +78,16 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
 
 export function Drawer({ isOpen, onClose, children }) {
   if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-[100] flex justify-end">
-      <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm transition-opacity" onClick={onClose} />
-      <div className="relative w-full md:w-[700px] lg:w-[900px] xl:w-[1000px] h-full bg-slate-50 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex justify-end print-drawer">
+      <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm transition-opacity print:hidden" onClick={onClose} />
+      <div className="relative w-full md:w-[700px] lg:w-[900px] xl:w-[1000px] h-full bg-slate-50 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 overflow-y-auto print-drawer-panel">
         <div className="p-4 md:p-6 lg:p-8">
           {children}
         </div>
       </div>
     </div>
-  );
+  , document.body);
 }
 
 export function Badge({ children, variant = 'gray', className = '' }) {
@@ -150,4 +151,71 @@ export function Th({ children, className = '' }) {
 
 export function Td({ children, className = '' }) {
   return <td className={`px-4 py-3 border-b border-slate-100 text-slate-700 ${className}`}>{children}</td>;
+}
+
+/** Inline message (replaces alert()). tone: error | success | info */
+export function Alert({ tone = 'error', children, className = '' }) {
+  if (!children) return null;
+  const tones = {
+    error: 'bg-red-50 border-red-200 text-red-700',
+    success: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+    info: 'bg-sky-50 border-sky-200 text-sky-700',
+  };
+  return (
+    <div role={tone === 'error' ? 'alert' : 'status'} className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${tones[tone]} ${className}`}>
+      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+      <div>{children}</div>
+    </div>
+  );
+}
+
+/** Loading / error / empty wrapper for list pages. */
+export function LoadState({ loading, error, onRetry }) {
+  if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
+  if (error) {
+    return (
+      <div className="p-8 max-w-lg mx-auto text-center space-y-3">
+        <Alert>{error}</Alert>
+        {onRetry && <Button variant="outline" onClick={onRetry}>Try again</Button>}
+      </div>
+    );
+  }
+  return null;
+}
+
+/** Client-side pagination for big lists. Resets to page 1 when the data set changes. */
+export function usePaged(items, size = 50) {
+  const [page, setPage] = useState(1);
+  const pages = Math.max(1, Math.ceil(items.length / size));
+  useEffect(() => { setPage(1); }, [items.length]);
+  const p = Math.min(page, pages);
+  return { rows: items.slice((p - 1) * size, p * size), page: p, pages, setPage, total: items.length, size };
+}
+
+export function Pager({ paged }) {
+  if (paged.pages <= 1) return null;
+  const from = (paged.page - 1) * paged.size + 1;
+  const to = Math.min(paged.total, paged.page * paged.size);
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 text-sm text-slate-500">
+      <span>{from}–{to} of {paged.total}</span>
+      <div className="flex items-center gap-2">
+        <Button type="button" variant="outline" size="sm" disabled={paged.page <= 1} onClick={() => paged.setPage(paged.page - 1)}><ChevronLeft className="w-4 h-4" /></Button>
+        <span>Page {paged.page} / {paged.pages}</span>
+        <Button type="button" variant="outline" size="sm" disabled={paged.page >= paged.pages} onClick={() => paged.setPage(paged.page + 1)}><ChevronRight className="w-4 h-4" /></Button>
+      </div>
+    </div>
+  );
+}
+
+/** Wrap an async submit so it can't run twice at once and surfaces its error inline. */
+export function useAction() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const run = async (fn) => {
+    if (busy) return undefined;
+    setBusy(true); setError('');
+    try { return await fn(); } catch (e) { setError(e?.message || String(e)); return undefined; } finally { setBusy(false); }
+  };
+  return { busy, error, setError, run };
 }

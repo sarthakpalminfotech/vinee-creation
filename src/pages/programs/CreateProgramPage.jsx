@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader, Card, Button, Input, Select, Field, Empty, Drawer } from '../../components/ui';
+import { PageHeader, Card, Button, Input, Select, Field, Empty, Drawer, Alert, useAction } from '../../components/ui';
 import { ArrowLeft, Save, Plus, Trash2, Scissors } from 'lucide-react';
 import * as repo from '../../db/repo';
 
@@ -22,6 +22,9 @@ export default function CreateProgramPage() {
 
   const [availableTakas, setAvailableTakas] = useState([]);
   const [lines, setLines] = useState([]);
+  const [programTotal, setProgramTotal] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const { busy, error, run } = useAction();
 
   useEffect(() => {
     async function load() {
@@ -37,7 +40,7 @@ export default function CreateProgramPage() {
         setCharts(allCharts);
         setShades(allShades);
       } catch (e) {
-        console.error(e);
+        setLoadError(e.message);
       } finally {
         setLoading(false);
       }
@@ -77,31 +80,23 @@ export default function CreateProgramPage() {
 
   const totalTakas = lines.reduce((s, l) => s + (parseInt(l.taka_count) || 0), 0);
 
-  const handleSave = async (e) => {
+  const splitDiff = programTotal === '' ? 0 : (parseInt(programTotal) || 0) - totalTakas;
+  const usedShades = new Set(lines.map(l => l.shade_id).filter(Boolean));
+
+  const handleSave = (e) => {
     e.preventDefault();
-    try {
-      if (!formData.mill_id || !formData.quality_id || !formData.chart_id) {
-        throw new Error('Please select mill, quality, and shade chart');
-      }
+    run(async () => {
+      if (!formData.mill_id || !formData.quality_id || !formData.chart_id) throw new Error('Please select mill, quality, and shade chart');
       const validLines = lines.filter(l => l.shade_id && parseInt(l.taka_count) > 0);
-      if (validLines.length === 0) {
-        throw new Error('Please add at least one valid shade line');
-      }
-      if (totalTakas > availableTakas.length) {
-        throw new Error(`Only ${availableTakas.length} takas available. You assigned ${totalTakas}.`);
-      }
-      
-      const id = await repo.createProgram({
-        ...formData,
-        lines: validLines
-      });
+      if (validLines.length === 0) throw new Error('Please add at least one valid shade line');
+      if (programTotal !== '' && splitDiff !== 0) throw new Error(`The shade split adds up to ${totalTakas} but the program is for ${programTotal} takas`);
+      if (totalTakas > availableTakas.length) throw new Error(`Only ${availableTakas.length} takas available. You assigned ${totalTakas}.`);
+      const id = await repo.createProgram({ ...formData, total_takas: programTotal, lines: validLines });
       navigate(`/programs/${id}`);
-    } catch (err) {
-      alert(err.message);
-    }
+    });
   };
 
-  if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
+  if (loading || loadError) return <Drawer isOpen onClose={() => navigate('/programs')}>{loading ? <div className="p-12 text-center text-slate-500">Loading...</div> : <Alert>{loadError}</Alert>}</Drawer>;
 
   return (
     <Drawer isOpen={true} onClose={() => navigate('/programs')}>
@@ -134,10 +129,13 @@ export default function CreateProgramPage() {
                 <Input type="date" required value={formData.date} onChange={e => setFormData(p => ({ ...p, date: e.target.value }))} />
               </Field>
               <Field label="Shade Chart *">
-                <Select required value={formData.chart_id} onChange={e => setFormData(p => ({ ...p, chart_id: e.target.value, lines: [] }))}>
+                <Select required value={formData.chart_id} onChange={e => { setFormData(p => ({ ...p, chart_id: e.target.value })); setLines([]); }}>
                   <option value="">Select Chart...</option>
                   {charts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </Select>
+              </Field>
+              <Field label="Takas in this program (optional check)">
+                <Input type="number" min="1" value={programTotal} onChange={e => setProgramTotal(e.target.value)} placeholder="e.g. 48" />
               </Field>
               <div className="md:col-span-2">
                 <Field label="Notes (Optional)">
@@ -203,7 +201,7 @@ export default function CreateProgramPage() {
                             onChange={e => updateLine(l.id, 'shade_id', e.target.value)}
                           >
                             <option value="">Select shade...</option>
-                            {availableShades.map(s => <option key={s.id} value={s.id}>{s.number} {s.name ? `- ${s.name}` : ''}</option>)}
+                            {availableShades.filter(s => s.id.toString() === l.shade_id || !usedShades.has(s.id.toString())).map(s => <option key={s.id} value={s.id}>{s.number} {s.name ? `- ${s.name}` : ''}</option>)}
                           </Select>
                         </div>
                       </Field>
@@ -250,13 +248,19 @@ export default function CreateProgramPage() {
                 {totalTakas > availableTakas.length && (
                   <p className="text-xs text-red-600 mt-2">Exceeds available takas!</p>
                 )}
+                {programTotal !== '' && (
+                  <p className={`text-xs mt-2 ${splitDiff === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {splitDiff === 0 ? 'Shade split matches the program total.' : splitDiff > 0 ? `${splitDiff} takas still to split across shades.` : `Split is ${-splitDiff} over the program total.`}
+                  </p>
+                )}
               </div>
             </div>
             
+            <Alert className="mt-4">{error}</Alert>
             <div className="mt-8 pt-6 border-t border-slate-200">
-              <Button type="submit" className="w-full h-12 text-base shadow-sm" disabled={totalTakas === 0 || totalTakas > availableTakas.length}>
+              <Button type="submit" className="w-full h-12 text-base shadow-sm" disabled={busy || totalTakas === 0 || totalTakas > availableTakas.length || (programTotal !== '' && splitDiff !== 0)}>
                 <Save className="w-5 h-5 mr-2" />
-                Issue Program
+                {busy ? 'Saving…' : 'Issue Program'}
               </Button>
             </div>
           </Card>

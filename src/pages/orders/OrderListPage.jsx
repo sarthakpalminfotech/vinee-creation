@@ -85,7 +85,6 @@ export default function OrderListPage() {
                 </Td>
                 <Td>
                   <div className="font-medium text-slate-900">{o.nick_name}</div>
-                  <div className="text-xs text-slate-500">{o.original_name}</div>
                 </Td>
                 <Td className="text-right font-medium">{o.total_takas}</Td>
                 <Td className="text-right">

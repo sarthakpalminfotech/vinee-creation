@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PageHeader, Card, Button, Badge, Table, Th, Td, Drawer } from '../../components/ui';
+import { PageHeader, Card, Button, Badge, Table, Th, Td, Drawer, Alert } from '../../components/ui';
+import { fmtM, fmtPct, fmtDate } from '../../lib/format';
 import { ArrowLeft, CheckCircle, Package, MapPin, ExternalLink, ShieldCheck } from 'lucide-react';
 import * as repo from '../../db/repo';
 
@@ -9,6 +10,7 @@ export default function PoDetailPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [po, setPo] = useState(null);
+  const [error, setError] = useState('');
 
   const load = async () => {
     try {
@@ -16,7 +18,7 @@ export default function PoDetailPage() {
       if (!data) return navigate('/po');
       setPo(data);
     } catch (e) {
-      console.error(e);
+      setError(e.message);
     } finally {
       setLoading(false);
     }
@@ -27,18 +29,22 @@ export default function PoDetailPage() {
   }, [id]);
 
   const handleClosePo = async () => {
-    if (!confirm('Are you sure you want to manually close this PO? It will be marked as Completed.')) return;
+    if (!confirm('Close this PO short? No further challans can be received until you re-open it.')) return;
     try {
       await repo.setPOClosed(id, true);
       load();
     } catch (err) {
-      alert(err.message);
+      setError(err.message);
     }
   };
+  const handleReopen = async () => {
+    try { await repo.setPOClosed(id, false); load(); } catch (err) { setError(err.message); }
+  };
 
-  if (loading || !po) return <div className="p-12 text-center text-slate-500">Loading...</div>;
+  if (loading || !po) return <Drawer isOpen onClose={() => navigate('/po')}>{error ? <Alert>{error}</Alert> : <div className="p-12 text-center text-slate-500">Loading...</div>}</Drawer>;
 
-  const isCompleted = po.status === 'COMPLETED';
+  const isCompleted = po.status === 'RECEIVED' || po.status === 'CLOSED';
+  const meta = repo.PO_STATUS_META[po.status];
   const progressColor = isCompleted ? 'text-emerald-500' : 'text-primary-500';
 
   return (
@@ -46,23 +52,24 @@ export default function PoDetailPage() {
       <div className="space-y-6 max-w-5xl mx-auto">
       <PageHeader 
         title={`PO ${po.po_no}`}
-        description={`Created on ${new Date(po.po_date).toLocaleDateString()}`}
+        description={`Created on ${fmtDate(po.po_date)}`}
       >
         <Button variant="ghost" onClick={() => navigate('/po')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
-        {!isCompleted && <Button variant="outline" onClick={handleClosePo}><CheckCircle className="w-4 h-4 mr-2" /> Close PO Short</Button>}
-        <Button onClick={() => navigate(`/receipts/new?po_id=${po.id}`)} disabled={isCompleted}>
+        {po.closed ? <Button variant="outline" onClick={handleReopen}>Re-open PO</Button> : (po.status !== 'RECEIVED' && <Button variant="outline" onClick={handleClosePo}><CheckCircle className="w-4 h-4 mr-2" /> Close PO short</Button>)}
+        <Button onClick={() => navigate(`/receipts/new?po_id=${po.id}`)} disabled={!!po.closed}>
           <Package className="w-4 h-4 mr-2" /> Receive Challan
         </Button>
       </PageHeader>
 
+      <Alert>{error}</Alert>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="p-6 md:col-span-2 space-y-6">
           <div className="flex justify-between items-start">
             <div>
               <h3 className="text-xl font-bold text-slate-900">{po.group_name}</h3>
-              <p className="text-slate-500">{po.nick_name} <span className="text-xs">({po.original_name})</span></p>
+              <p className="text-slate-500">{po.original_name} <span className="text-xs">(nickname: {po.nick_name})</span></p>
             </div>
-            {isCompleted ? <Badge variant="success">Completed</Badge> : (po.status === 'PARTIAL' ? <Badge variant="warning">Partial</Badge> : <Badge variant="primary">Open</Badge>)}
+            <Badge variant={meta.variant}>{meta.label}</Badge>
           </div>
           
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -107,16 +114,17 @@ export default function PoDetailPage() {
           <div className="w-full space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-slate-500">Received</span>
-              <span className="font-medium text-slate-900">{po.received_m.toLocaleString()} m</span>
+              <span className="font-medium text-slate-900">{fmtM(po.received_m)} m</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Pending</span>
-              <span className="font-medium text-slate-900">{po.pending_m.toLocaleString()} m</span>
+              <span className="font-medium text-slate-900">{fmtM(po.pending_m)} m</span>
             </div>
-            {isCompleted && po.shortfall > 0 && (
-              <div className="flex justify-between text-amber-600 font-medium pt-2 border-t border-slate-100">
-                <span>Shortfall</span>
-                <span>{po.shortfall.toLocaleString()} m</span>
+            {isCompleted && (
+              <div className={`pt-2 border-t border-slate-100 font-medium ${po.shortfall > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                <div className="flex justify-between"><span>Ordered</span><span>{fmtM(po.meters)} m</span></div>
+                <div className="flex justify-between"><span>Received</span><span>{fmtM(po.received_m)} m</span></div>
+                <div className="flex justify-between"><span>{po.shortfall >= 0 ? 'Weaver shrinkage' : 'Excess received'}</span><span>{fmtM(Math.abs(po.shortfall))} m ({fmtPct(Math.abs(po.shortfall_pct))})</span></div>
               </div>
             )}
           </div>
@@ -142,7 +150,7 @@ export default function PoDetailPage() {
           <tbody>
             {po.receipts?.map(r => (
               <tr key={r.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => navigate(`/receipts/${r.id}`)}>
-                <Td>{new Date(r.date).toLocaleDateString()}</Td>
+                <Td>{fmtDate(r.date)}</Td>
                 <Td className="font-medium">{r.challan_no}</Td>
                 <Td>{r.weaver_name}</Td>
                 <Td>
@@ -152,7 +160,7 @@ export default function PoDetailPage() {
                   }
                 </Td>
                 <Td className="text-right font-medium">{r.taka_count}</Td>
-                <Td className="text-right">{r.total_m.toLocaleString()}</Td>
+                <Td className="text-right">{fmtM(r.total_m)}</Td>
                 <Td className="text-right"><ExternalLink className="w-4 h-4 text-slate-400 inline" /></Td>
               </tr>
             ))}

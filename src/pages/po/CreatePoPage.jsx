@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader, Card, Button, Input, Select, Field, Drawer } from '../../components/ui';
+import { PageHeader, Card, Button, Input, Select, Field, Drawer, Alert, useAction } from '../../components/ui';
 import { ArrowLeft, Save, FileImage } from 'lucide-react';
 import * as repo from '../../db/repo';
 
 export default function CreatePoPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const { busy, error, run } = useAction();
   const [groups, setGroups] = useState([]);
   const [qualities, setQualities] = useState([]);
   
@@ -26,16 +28,11 @@ export default function CreatePoPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [poNo, grps, quals] = await Promise.all([
-          repo.nextPoNo(),
-          repo.listWeaverGroups(),
-          repo.listQualities()
-        ]);
+        const [grps, quals] = await Promise.all([repo.listWeaverGroups(), repo.listQualities()]);
         setGroups(grps);
         setQualities(quals);
-        setFormData(prev => ({ ...prev, po_no: poNo }));
       } catch (e) {
-        console.error(e);
+        setLoadError(e.message);
       } finally {
         setLoading(false);
       }
@@ -53,20 +50,17 @@ export default function CreatePoPage() {
     }));
   };
 
-  const handleSave = async (e) => {
+  const handleSave = (e) => {
     e.preventDefault();
-    try {
-      if (!formData.group_id || !formData.quality_id || !formData.meters || !formData.rate) {
-        throw new Error('Please fill all required fields');
-      }
+    run(async () => {
+      if (!formData.po_no.trim()) throw new Error('Enter the PO number from the paper PO');
+      if (!formData.group_id || !formData.quality_id || !formData.meters || !formData.rate) throw new Error('Please fill all required fields');
       const id = await repo.createPO(formData);
       navigate(`/po/${id}`);
-    } catch (err) {
-      alert(err.message);
-    }
+    });
   };
 
-  if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
+  if (loading || loadError) return <Drawer isOpen onClose={() => navigate('/po')}>{loading ? <div className="p-12 text-center text-slate-500">Loading...</div> : <Alert>{loadError}</Alert>}</Drawer>;
 
   const meters = Number(formData.meters) || 0;
   const rate = Number(formData.rate) || 0;
@@ -89,13 +83,13 @@ export default function CreatePoPage() {
           <Card className="p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">Order Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="PO Number *">
-                <Input required value={formData.po_no} onChange={e => setFormData(p => ({ ...p, po_no: e.target.value }))} />
+              <Field label="PO Number (from the paper PO) *">
+                <Input required placeholder="e.g. GT/118" value={formData.po_no} onChange={e => setFormData(p => ({ ...p, po_no: e.target.value }))} />
               </Field>
               <Field label="PO Date *">
                 <Input type="date" required value={formData.po_date} onChange={e => setFormData(p => ({ ...p, po_date: e.target.value }))} />
               </Field>
-              <Field label="Weaver Group *">
+              <Field label="Party Group *">
                 <Select required value={formData.group_id} onChange={e => setFormData(p => ({ ...p, group_id: e.target.value }))}>
                   <option value="">Select Group...</option>
                   {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -113,7 +107,7 @@ export default function CreatePoPage() {
               <Field label="Quality *">
                 <Select required value={formData.quality_id} onChange={handleQualityChange}>
                   <option value="">Select Quality...</option>
-                  {qualities.map(q => <option key={q.id} value={q.id}>{q.nick_name} ({q.original_name})</option>)}
+                  {qualities.map(q => <option key={q.id} value={q.id}>{q.original_name} ({q.nick_name})</option>)}
                 </Select>
               </Field>
               <Field label="Total Meters *">
@@ -164,10 +158,11 @@ export default function CreatePoPage() {
               </div>
             </div>
             
+            <Alert className="mt-4">{error}</Alert>
             <div className="mt-8 pt-6 border-t border-primary-200/50">
-              <Button type="submit" className="w-full h-12 text-base shadow-lg shadow-primary-500/20">
+              <Button type="submit" disabled={busy} className="w-full h-12 text-base shadow-lg shadow-primary-500/20">
                 <Save className="w-5 h-5 mr-2" />
-                Create PO
+                {busy ? 'Saving…' : 'Create PO'}
               </Button>
             </div>
           </Card>

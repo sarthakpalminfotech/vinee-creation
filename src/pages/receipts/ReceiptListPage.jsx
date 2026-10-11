@@ -30,7 +30,7 @@ export default function ReceiptListPage() {
     r.challan_no.toLowerCase().includes(search.toLowerCase()) || 
     r.po_no.toLowerCase().includes(search.toLowerCase()) || 
     r.weaver_name.toLowerCase().includes(search.toLowerCase()) ||
-    r.nick_name.toLowerCase().includes(search.toLowerCase())
+    r.nick_name.toLowerCase().includes(search.toLowerCase()) || r.original_name.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -77,7 +77,7 @@ export default function ReceiptListPage() {
                 <Td>{new Date(r.date).toLocaleDateString()}</Td>
                 <Td>
                   <div>{r.po_no}</div>
-                  <div className="text-xs text-slate-500">{r.nick_name}</div>
+                  <div className="text-xs text-slate-500">{r.original_name}</div>
                 </Td>
                 <Td>{r.weaver_name}</Td>
                 <Td>

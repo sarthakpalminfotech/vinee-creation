@@ -1,112 +1,108 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PageHeader, Card, Button, Table, Th, Td, Drawer } from '../../components/ui';
-import { ArrowLeft, Printer, ShieldCheck } from 'lucide-react';
+import { PageHeader, Card, Button, Table, Th, Td, Drawer, Alert } from '../../components/ui';
+import { ArrowLeft, Printer, ShieldCheck, ClipboardList } from 'lucide-react';
+import { fmtM, fmtDate } from '../../lib/format';
 import * as repo from '../../db/repo';
 
+// Mill-facing document: the quality is ALWAYS shown by its nickname (never the weaver's original name).
 export default function DispatchDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [dispatch, setDispatch] = useState(null);
+  const [pick, setPick] = useState([]);
+  const [printView, setPrintView] = useState('challan'); // what window.print() outputs
 
   useEffect(() => {
-    async function load() {
+    (async () => {
       try {
         const data = await repo.getDispatch(id);
         if (!data) return navigate('/dispatch');
         setDispatch(data);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [id]);
+        setPick(await repo.getPickList(id));
+      } catch (e) { setError(e.message); } finally { setLoading(false); }
+    })();
+  }, [id, navigate]);
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const print = (view) => { setPrintView(view); setTimeout(() => window.print(), 50); };
 
-  if (loading || !dispatch) return <div className="p-12 text-center text-slate-500">Loading...</div>;
+  if (loading || error || !dispatch) {
+    return <Drawer isOpen onClose={() => navigate('/dispatch')}>{error ? <Alert>{error}</Alert> : <div className="p-12 text-center text-slate-500">Loading...</div>}</Drawer>;
+  }
+
+  const hideChallan = printView === 'pick' ? 'print:hidden' : '';
+  const hidePick = printView === 'challan' ? 'print:hidden' : '';
 
   return (
-    <Drawer isOpen={true} onClose={() => navigate('/dispatch')}>
+    <Drawer isOpen onClose={() => navigate('/dispatch')}>
       <div className="space-y-6 max-w-5xl mx-auto print:max-w-none print:m-0 print:p-0">
-      <div className="print:hidden">
-        <PageHeader 
-          title={`Dispatch ${dispatch.dispatch_no}`}
-          description={`Sent to ${dispatch.mill_name} on ${new Date(dispatch.date).toLocaleDateString()}`}
-        >
-          <Button variant="ghost" onClick={() => navigate('/dispatch')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
-          <Button variant="outline" onClick={handlePrint}><Printer className="w-4 h-4 mr-2" /> Print Challan</Button>
-        </PageHeader>
-      </div>
-
-      <div className="hidden print:block text-center mb-8 border-b-2 border-slate-900 pb-6">
-        <h1 className="text-3xl font-bold text-slate-900 uppercase tracking-widest">Vinee Creation</h1>
-        <h2 className="text-xl font-medium mt-2">Delivery Challan (Grey to Mill)</h2>
-        <div className="flex justify-between items-end mt-8 text-left">
-          <div>
-            <p className="text-slate-600 font-semibold mb-1">To: Mill</p>
-            <p className="text-lg font-bold text-slate-900">{dispatch.mill_name}</p>
-          </div>
-          <div className="text-right">
-            <p className="font-semibold text-slate-900">No: {dispatch.dispatch_no}</p>
-            <p className="text-slate-700">Date: {new Date(dispatch.date).toLocaleDateString()}</p>
-          </div>
+        <div className="print:hidden">
+          <PageHeader title={`Mill challan ${dispatch.dispatch_no}`} description={`Sent to ${dispatch.mill_name} on ${fmtDate(dispatch.date)}`}>
+            <Button variant="ghost" onClick={() => navigate('/dispatch')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
+            <Button variant="outline" onClick={() => print('pick')}><ClipboardList className="w-4 h-4 mr-2" /> Print picking list</Button>
+            <Button onClick={() => print('challan')}><Printer className="w-4 h-4 mr-2" /> Print challan</Button>
+          </PageHeader>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 print:hidden">
-        <Card className="p-6 md:col-span-3">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-sky-100 text-sky-600 rounded-xl flex items-center justify-center">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
+        {/* printed heading (both documents) */}
+        <div className="hidden print:block text-center mb-6 border-b-2 border-slate-900 pb-4">
+          <h1 className="text-3xl font-bold text-slate-900 uppercase tracking-widest">Vinee Creation</h1>
+          <h2 className="text-xl font-medium mt-2">{printView === 'pick' ? 'Picking List (internal)' : 'Delivery Challan (Grey to Mill)'}</h2>
+          <div className="flex justify-between items-end mt-6 text-left">
             <div>
-              <h3 className="text-xl font-bold text-slate-900">{dispatch.mill_name}</h3>
-              <p className="text-slate-500 text-sm">Destination Mill</p>
+              <p className="text-slate-600 font-semibold mb-1">Mill</p>
+              <p className="text-lg font-bold text-slate-900">{dispatch.mill_name}</p>
+              <p className="text-slate-700">Quality: <strong>{dispatch.qualities || '-'}</strong></p>
+            </div>
+            <div className="text-right">
+              <p className="font-semibold text-slate-900">No: {dispatch.dispatch_no}</p>
+              <p className="text-slate-700">Date: {fmtDate(dispatch.date)}</p>
+              <p className="text-slate-700">{dispatch.taka_count} takas · {fmtM(dispatch.total_m)} m</p>
             </div>
           </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-slate-50 p-4 rounded-xl">
-              <div className="text-sm text-slate-500 mb-1">Total Takas</div>
-              <div className="text-2xl font-bold text-slate-900">{dispatch.taka_count}</div>
-            </div>
-            <div className="bg-slate-50 p-4 rounded-xl">
-              <div className="text-sm text-slate-500 mb-1">Total Meters</div>
-              <div className="text-2xl font-bold text-slate-900">{dispatch.total_m.toLocaleString()} m</div>
-            </div>
-            <div className="col-span-2 bg-slate-50 p-4 rounded-xl">
-              <div className="text-sm text-slate-500 mb-1">Qualities Included</div>
-              <div className="font-medium text-slate-900">{dispatch.qualities || '-'}</div>
-            </div>
-          </div>
-          
-          {dispatch.notes && (
-            <div className="mt-4 text-sm bg-slate-100 text-slate-700 p-4 rounded-xl border border-slate-200">
-              <strong className="block mb-1">Notes</strong>
-              {dispatch.notes}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <Card className="print:shadow-none print:border-none print:rounded-none">
-        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-xl print:hidden">
-          <h3 className="font-semibold text-slate-900">Takas Pick List</h3>
         </div>
-        <div className="print:p-0">
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 print:hidden">
+          <Card className="p-6 md:col-span-3">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-sky-100 text-sky-600 rounded-xl flex items-center justify-center"><ShieldCheck className="w-6 h-6" /></div>
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">{dispatch.mill_name}</h3>
+                <p className="text-slate-500 text-sm">Destination mill</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-50 p-4 rounded-xl"><div className="text-sm text-slate-500 mb-1">Total takas</div><div className="text-2xl font-bold text-slate-900">{dispatch.taka_count}</div></div>
+              <div className="bg-slate-50 p-4 rounded-xl"><div className="text-sm text-slate-500 mb-1">Total meters</div><div className="text-2xl font-bold text-slate-900">{fmtM(dispatch.total_m)} m</div></div>
+              <div className="col-span-2 bg-slate-50 p-4 rounded-xl"><div className="text-sm text-slate-500 mb-1">Quality</div><div className="font-medium text-slate-900">{dispatch.qualities || '-'}</div></div>
+            </div>
+            {dispatch.notes && <div className="mt-4 text-sm bg-slate-100 text-slate-700 p-4 rounded-xl border border-slate-200"><strong className="block mb-1">Notes</strong>{dispatch.notes}</div>}
+          </Card>
+        </div>
+
+        {/* picking list: where the supervisor takes each taka from */}
+        <Card className={`print:shadow-none print:border-none print:rounded-none ${hidePick}`}>
+          <div className="p-5 border-b border-slate-100 bg-slate-50/50 rounded-t-xl print:bg-white"><h3 className="font-semibold text-slate-900">Picking list — take from</h3></div>
+          <div className="divide-y divide-slate-100">
+            {pick.map((g) => (
+              <div key={g.key} className="p-4 break-inside-avoid">
+                <div className="flex justify-between font-semibold text-slate-900"><span>{g.label}</span><span>{g.count} takas · {fmtM(g.meters)} m</span></div>
+                <div className="mt-2 flex flex-wrap gap-1.5 text-sm">
+                  {g.takas.map((t) => <span key={t.id} className="px-2 py-0.5 bg-slate-100 rounded print:border print:border-slate-300 print:bg-white">{t.challan_no}/{t.taka_no} <span className="text-slate-500">({fmtM(t.grey_meter)})</span></span>)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className={`print:shadow-none print:border-none print:rounded-none ${hideChallan}`}>
+          <div className="p-5 border-b border-slate-100 bg-slate-50/50 rounded-t-xl print:hidden"><h3 className="font-semibold text-slate-900">Takas on this challan</h3></div>
           <Table className="print:text-sm">
             <thead>
               <tr className="print:border-b-2 print:border-slate-900">
-                <Th className="print:text-slate-900">#</Th>
-                <Th className="print:text-slate-900">Taka No</Th>
-                <Th className="print:text-slate-900">Quality</Th>
-                <Th className="text-right print:text-slate-900">Meters</Th>
+                <Th>#</Th><Th>Taka no</Th><Th>Quality</Th><Th className="text-right">Meters</Th>
               </tr>
             </thead>
             <tbody>
@@ -115,25 +111,20 @@ export default function DispatchDetailPage() {
                   <Td className="text-slate-500">{idx + 1}</Td>
                   <Td className="font-medium text-slate-900">{t.challan_no}/{t.taka_no}</Td>
                   <Td>{t.nick_name}</Td>
-                  <Td className="text-right">{t.grey_meter} m</Td>
+                  <Td className="text-right">{fmtM(t.grey_meter)} m</Td>
                 </tr>
               ))}
               <tr className="bg-slate-50 font-bold print:bg-white print:border-t-2 print:border-slate-900">
-                <Td colSpan={3} className="text-right py-4">Total</Td>
-                <Td className="text-right py-4">{dispatch.total_m.toLocaleString()} m</Td>
+                <Td colSpan={3} className="text-right py-4">Total — {dispatch.taka_count} takas</Td>
+                <Td className="text-right py-4">{fmtM(dispatch.total_m)} m</Td>
               </tr>
             </tbody>
           </Table>
-        </div>
-      </Card>
-      
-      <div className="hidden print:flex justify-between mt-24 pt-8">
-        <div className="text-center w-48 border-t border-slate-400 pt-2">
-          <p className="font-medium">Authorized Signatory</p>
-        </div>
-        <div className="text-center w-48 border-t border-slate-400 pt-2">
-          <p className="font-medium">Receiver's Signature</p>
-        </div>
+        </Card>
+
+        <div className={`hidden print:flex justify-between mt-24 pt-8 ${hideChallan}`}>
+          <div className="text-center w-48 border-t border-slate-400 pt-2"><p className="font-medium">Authorized Signatory</p></div>
+          <div className="text-center w-48 border-t border-slate-400 pt-2"><p className="font-medium">Receiver's Signature</p></div>
         </div>
       </div>
     </Drawer>

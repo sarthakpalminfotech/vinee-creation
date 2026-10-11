@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, Outlet } from 'react-router-dom';
-import { PageHeader, Card, Button, Input, Select, Badge, Empty, Table, Th, Td } from '../../components/ui';
-import { Plus, Search, ChevronRight, CheckCircle, FileText } from 'lucide-react';
+import { PageHeader, Card, Button, Input, Select, Badge, Empty, Table, Th, Td, LoadState, Pager, usePaged } from '../../components/ui';
+import { fmtM, fmtPct, fmtDate } from '../../lib/format';
+import { Plus, Search, ChevronRight, FileText } from 'lucide-react';
 import * as repo from '../../db/repo';
 
 export default function PoListPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [pos, setPos] = useState([]);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -17,15 +19,13 @@ export default function PoListPage() {
         const data = await repo.listPOs();
         setPos(data);
       } catch (e) {
-        console.error(e);
+        setError(e.message);
       } finally {
         setLoading(false);
       }
     }
     load();
   }, []);
-
-  if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
 
   const filtered = pos.filter(p => {
     const sMatch = p.po_no.toLowerCase().includes(search.toLowerCase()) || 
@@ -35,11 +35,9 @@ export default function PoListPage() {
     return sMatch && fMatch;
   });
 
-  const getStatusBadge = (status) => {
-    if (status === 'COMPLETED') return <Badge variant="success">Completed</Badge>;
-    if (status === 'PARTIAL') return <Badge variant="warning">Partial</Badge>;
-    return <Badge variant="primary">Open</Badge>;
-  };
+  const getStatusBadge = (status) => <Badge variant={repo.PO_STATUS_META[status].variant}>{repo.PO_STATUS_META[status].label}</Badge>;
+  const paged = usePaged(filtered, 50);
+  if (loading || error) return <LoadState loading={loading} error={error} />;
 
   return (
     <div className="space-y-6">
@@ -60,8 +58,9 @@ export default function PoListPage() {
         <Select className="w-full sm:w-48 bg-white" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="">All Status</option>
           <option value="OPEN">Open</option>
-          <option value="PARTIAL">Partial</option>
-          <option value="COMPLETED">Completed</option>
+          <option value="PARTIAL">Partly received</option>
+          <option value="RECEIVED">Received</option>
+          <option value="CLOSED">Closed (short)</option>
         </Select>
       </Card>
 
@@ -71,7 +70,7 @@ export default function PoListPage() {
             <tr>
               <Th>PO Number</Th>
               <Th>Date</Th>
-              <Th>Weaver Group</Th>
+              <Th>Party Group</Th>
               <Th>Quality</Th>
               <Th className="text-right">Meters</Th>
               <Th>Progress</Th>
@@ -80,7 +79,7 @@ export default function PoListPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(p => (
+            {paged.rows.map(p => (
               <tr key={p.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => navigate(`/po/${p.id}`)}>
                 <Td className="font-medium text-slate-900">
                   <div className="flex items-center gap-2">
@@ -88,22 +87,23 @@ export default function PoListPage() {
                     {p.po_no}
                   </div>
                 </Td>
-                <Td>{new Date(p.po_date).toLocaleDateString()}</Td>
+                <Td>{fmtDate(p.po_date)}</Td>
                 <Td>{p.group_name}</Td>
                 <Td>
-                  <div>{p.nick_name}</div>
-                  <div className="text-xs text-slate-500">{p.original_name}</div>
+                  <div>{p.original_name}</div>
+                  <div className="text-xs text-slate-500">{p.nick_name}</div>
                 </Td>
                 <Td className="text-right">
-                  <div>{p.meters.toLocaleString()} m</div>
+                  <div>{fmtM(p.meters)} m</div>
                   <div className="text-xs text-slate-500">@ ₹{p.rate}</div>
                 </Td>
                 <Td>
                   <div className="w-32">
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-500">{p.received_m.toLocaleString()}m</span>
+                      <span className="text-slate-500">{fmtM(p.received_m)} m</span>
                       <span className="font-medium">{Math.round(p.pct)}%</span>
                     </div>
+                    {p.shortfall_pct != null && p.shortfall !== 0 && <div className="text-[11px] text-amber-600 mt-1">{p.shortfall > 0 ? 'short' : 'excess'} {fmtM(Math.abs(p.shortfall))} m ({fmtPct(Math.abs(p.shortfall_pct))})</div>}
                     <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                       <div 
                         className={`h-full rounded-full transition-all ${p.pct >= 100 ? 'bg-emerald-500' : 'bg-primary-500'}`}
@@ -127,6 +127,7 @@ export default function PoListPage() {
             )}
           </tbody>
         </Table>
+        <Pager paged={paged} />
       </Card>
       <Outlet />
     </div>

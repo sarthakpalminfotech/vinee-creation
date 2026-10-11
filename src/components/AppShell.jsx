@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Home, Database, Scissors, Truck, ShoppingCart, Settings, Menu, X, CheckCircle, Store, Palette, MapPin } from 'lucide-react';
+import { Home, Database, Scissors, Truck, ShoppingCart, Settings, Menu, X, CheckCircle, Store, Palette, MapPin, Boxes, TrendingDown, SearchCheck } from 'lucide-react';
 import { Modal } from './ui';
 import { resetDemo } from '../db/repo';
+import { mode, exportBackup } from '../db/client';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: Home },
@@ -13,12 +14,26 @@ const NAV_ITEMS = [
   { path: '/dispatch', label: 'Mill Dispatch', icon: Truck },
   { path: '/folding', label: 'Folding', icon: Scissors },
   { path: '/assignment', label: 'Rack/Godown', icon: MapPin },
+  { path: '/inventory', label: 'Inventory', icon: Boxes },
+  { path: '/availability', label: 'Availability', icon: SearchCheck },
   { path: '/orders', label: 'Orders', icon: ShoppingCart },
+  { path: '/reports/shrinkage', label: 'Shrinkage Report', icon: TrendingDown },
 ];
 
 export function AppShell() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+
+  const handleBackup = async () => {
+    try {
+      const bytes = await exportBackup();
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = `vinee-backup-${new Date().toISOString().slice(0, 10)}.sqlite`; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { setSettingsError(e.message); }
+  };
 
   const handleReset = async () => {
     if (confirm('Reset all demo data? This will clear everything.')) {
@@ -28,9 +43,9 @@ export function AppShell() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans text-slate-900">
+    <div className="app-root flex h-screen bg-slate-50 overflow-hidden font-sans text-slate-900">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 border-r border-slate-200 bg-white shadow-sm">
+      <aside className="print:hidden hidden lg:flex flex-col w-64 border-r border-slate-200 bg-white shadow-sm">
         <div className="h-16 flex items-center px-6 border-b border-slate-100">
           <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400">
             Vinee Creation
@@ -67,7 +82,7 @@ export function AppShell() {
 
       {/* Mobile Header & Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="lg:hidden flex items-center h-14 px-4 bg-white border-b border-slate-200">
+        <header className="print:hidden lg:hidden flex items-center h-14 px-4 bg-white border-b border-slate-200">
           <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 -ml-2 mr-2 text-slate-600">
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -118,7 +133,7 @@ export function AppShell() {
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="app-main flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>
@@ -128,18 +143,31 @@ export function AppShell() {
           <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
             <div>
               <div className="font-medium text-slate-900">Storage Mode</div>
-              <div className="text-sm text-slate-500">Local IndexedDB</div>
+              <div className="text-sm text-slate-500">{mode === 'turso' ? 'Remote database (Turso)' : 'Local IndexedDB (this browser only)'}</div>
             </div>
             <div className="px-2 py-1 text-xs font-semibold bg-primary-100 text-primary-700 rounded">
-              LOCAL
+              {mode === 'turso' ? 'REMOTE' : 'LOCAL'}
             </div>
           </div>
-          <button
-            onClick={handleReset}
-            className="w-full py-2.5 px-4 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors"
-          >
-            Reset Demo Data
-          </button>
+          {settingsError && <div className="text-sm text-red-600">{settingsError}</div>}
+          {mode === 'local' ? (
+            <>
+              <button
+                onClick={handleBackup}
+                className="w-full py-2.5 px-4 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-200 transition-colors"
+              >
+                Download database backup
+              </button>
+              <button
+                onClick={handleReset}
+                className="w-full py-2.5 px-4 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors"
+              >
+                Reset Demo Data
+              </button>
+            </>
+          ) : (
+            <div className="text-xs text-slate-500">Reset is disabled on a remote database.</div>
+          )}
         </div>
       </Modal>
     </div>

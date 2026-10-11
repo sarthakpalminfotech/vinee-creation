@@ -56,3 +56,16 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Printing: show only the document (challan / program), not the app chrome or drawer. */
+@media print {
+  body { background: #fff !important; }
+  /* a drawer (portal outside #root) is open → print only it */
+  body:has(.print-drawer) #root { display: none !important; }
+  .app-root { display: block !important; height: auto !important; overflow: visible !important; }
+  .app-main { overflow: visible !important; padding: 0 !important; }
+  .print-drawer { position: static !important; display: block !important; }
+  .print-drawer > .print-drawer-panel { width: 100% !important; height: auto !important; overflow: visible !important; box-shadow: none !important; background: #fff !important; }
+  .print-hide-view { display: none !important; }
+  .print-page-break { break-before: page; }
+}

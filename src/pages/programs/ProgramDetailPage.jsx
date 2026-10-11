@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Button, Badge, Table, Th, Td, Drawer } from '../../components/ui';
 import { ArrowLeft, Printer, Scissors, Palette, CheckCircle } from 'lucide-react';
+import { fmtM, fmtPct, fmtDate } from '../../lib/format';
 import * as repo from '../../db/repo';
 
 export default function ProgramDetailPage() {
@@ -35,7 +36,7 @@ export default function ProgramDetailPage() {
         <div className="print:hidden">
         <PageHeader 
           title={`Program ${program.program_no}`}
-          description={`Issued on ${new Date(program.date).toLocaleDateString()}`}
+          description={`Issued on ${fmtDate(program.date)}`}
         >
           <Button variant="ghost" onClick={() => navigate('/programs')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
           <Button variant="outline" onClick={handlePrint}><Printer className="w-4 h-4 mr-2" /> Print PDF</Button>
@@ -55,7 +56,7 @@ export default function ProgramDetailPage() {
           </div>
           <div className="text-right">
             <p className="font-semibold text-slate-900">No: {program.program_no}</p>
-            <p className="text-slate-700">Date: {new Date(program.date).toLocaleDateString()}</p>
+            <p className="text-slate-700">Date: {fmtDate(program.date)}</p>
           </div>
         </div>
       </div>
@@ -69,7 +70,7 @@ export default function ProgramDetailPage() {
               </div>
               <div>
                 <h3 className="text-xl font-bold text-slate-900">{program.mill_name}</h3>
-                <p className="text-slate-500 text-sm">{program.nick_name} <span className="text-xs">({program.original_name})</span></p>
+                <p className="text-slate-500 text-sm">{program.nick_name}</p>
               </div>
             </div>
             {program.status === 'DONE' ? <Badge variant="success">Done</Badge> : (program.status === 'PARTIAL' ? <Badge variant="warning">Partial</Badge> : <Badge variant="primary">In Dyeing</Badge>)}
@@ -144,7 +145,8 @@ export default function ProgramDetailPage() {
                 <Th className="print:text-slate-900">Shade No</Th>
                 <Th className="print:text-slate-900">Name</Th>
                 <Th className="text-right print:text-slate-900">Takas to Dye</Th>
-                <Th className="text-right print:hidden">Received</Th>
+                <Th className="text-right print:text-slate-900">Grey Meters</Th>
+                <Th className="text-right print:hidden">Received / Pending</Th>
               </tr>
             </thead>
             <tbody>
@@ -156,22 +158,55 @@ export default function ProgramDetailPage() {
                   <Td className="font-bold text-slate-900 text-lg print:text-2xl">{l.shade_no}</Td>
                   <Td className="text-slate-600 font-medium">{l.shade_name || '-'}</Td>
                   <Td className="text-right font-bold text-lg print:text-2xl">{l.taka_count}</Td>
+                  <Td className="text-right print:text-xl">{fmtM(l.grey_m)}</Td>
                   <Td className="text-right print:hidden">
                     <span className={`font-medium ${l.received >= l.taka_count ? 'text-emerald-600' : 'text-slate-500'}`}>
-                      {l.received} / {l.taka_count}
+                      {l.received} / {l.taka_count} <span className="text-slate-400">· {l.taka_count - l.received} pending</span>
                     </span>
                   </Td>
                 </tr>
               ))}
               <tr className="bg-slate-50 font-bold print:bg-white print:border-t-2 print:border-slate-900 print:text-xl">
-                <Td colSpan={3} className="text-right py-4">Total Takas Sent</Td>
+                <Td colSpan={3} className="text-right py-4">Total</Td>
                 <Td className="text-right py-4 text-xl">{program.total_takas}</Td>
+                <Td className="text-right py-4">{fmtM(program.grey_m)}</Td>
                 <Td className="print:hidden"></Td>
               </tr>
             </tbody>
           </Table>
         </div>
       </Card>
+
+      {program.takas?.some(t => t.finished_receipt_id) && (
+        <Card className="print:hidden">
+          <div className="p-5 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
+            <h3 className="font-semibold text-slate-900">Received from mill — finishing shrinkage</h3>
+          </div>
+          <div className="max-h-96 overflow-y-auto">
+            <Table>
+              <thead><tr><Th>Shade</Th><Th>Taka</Th><Th className="text-right">Grey m</Th><Th className="text-right">Finished m</Th><Th className="text-right">Loss m</Th><Th className="text-right">Loss %</Th><Th>Mill challan</Th></tr></thead>
+              <tbody>
+                {program.takas.filter(t => t.finished_receipt_id).map(t => (
+                  <tr key={t.id}>
+                    <Td>{t.shade_no}</Td><Td>{t.label}</Td><Td className="text-right">{fmtM(t.millGrey)}</Td><Td className="text-right">{fmtM(t.finished_meter)}</Td>
+                    <Td className="text-right">{fmtM(t.finishLoss)}</Td><Td className="text-right">{fmtPct(t.finishPct)}</Td><Td>{t.finished_challan}</Td>
+                  </tr>
+                ))}
+                {(() => {
+                  const r = program.takas.filter(t => t.finished_receipt_id);
+                  const g = r.reduce((s, t) => s + t.millGrey, 0), f = r.reduce((s, t) => s + Number(t.finished_meter), 0);
+                  return (
+                    <tr className="bg-slate-50 font-bold">
+                      <Td colSpan={2}>Total ({r.length} takas)</Td><Td className="text-right">{fmtM(g)}</Td><Td className="text-right">{fmtM(f)}</Td>
+                      <Td className="text-right">{fmtM(g - f)}</Td><Td className="text-right">{fmtPct(g ? ((g - f) / g) * 100 : null)}</Td><Td></Td>
+                    </tr>
+                  );
+                })()}
+              </tbody>
+            </Table>
+          </div>
+        </Card>
+      )}
 
       <div className="hidden print:flex justify-between mt-24 pt-8">
         <div className="text-center w-64 border-t border-slate-400 pt-2">

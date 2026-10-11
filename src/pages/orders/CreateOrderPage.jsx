@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader, Card, Button, Input, Select, Field, Th, Td, Empty, Drawer } from '../../components/ui';
-import { ArrowLeft, Save, Plus, Trash2, LayoutDashboard } from 'lucide-react';
+import { PageHeader, Card, Button, Input, Select, Field, Empty, Drawer, Alert, useAction } from '../../components/ui';
+import { AvailabilityPanel, useAvailability } from './AvailabilityPanel';
+import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';
 import * as repo from '../../db/repo';
 
 export default function CreateOrderPage() {
@@ -20,7 +21,8 @@ export default function CreateOrderPage() {
   });
 
   const [lines, setLines] = useState([]);
-  const [availability, setAvailability] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const { busy, error, run } = useAction();
 
   useEffect(() => {
     async function load() {
@@ -36,7 +38,7 @@ export default function CreateOrderPage() {
         setQualities(quals);
         setShades(allShades);
       } catch (e) {
-        console.error(e);
+        setLoadError(e.message);
       } finally {
         setLoading(false);
       }
@@ -44,42 +46,28 @@ export default function CreateOrderPage() {
     load();
   }, []);
 
-  useEffect(() => {
-    async function checkStock() {
-      if (formData.quality_id) {
-        const stock = await repo.availability(formData.quality_id);
-        setAvailability(stock);
-      } else {
-        setAvailability(null);
-      }
-    }
-    checkStock();
-  }, [formData.quality_id]);
+  const shadeIds = lines.map(l => Number(l.shade_id)).filter(Boolean);
+  const { data: availability } = useAvailability(formData.quality_id, shadeIds);
+  const needs = Object.fromEntries(lines.filter(l => l.shade_id).map(l => [Number(l.shade_id), parseInt(l.taka_count) || 0]));
 
   const addLine = () => setLines([...lines, { id: Math.random().toString(36).substr(2, 9), shade_id: '', taka_count: '' }]);
   const removeLine = (id) => setLines(lines.filter(l => l.id !== id));
   const updateLine = (id, field, value) => setLines(lines.map(l => l.id === id ? { ...l, [field]: value } : l));
 
-  const handleSave = async (e) => {
+  const handleSave = (e) => {
     e.preventDefault();
-    try {
+    run(async () => {
       if (!formData.customer_id || !formData.quality_id) throw new Error('Please select customer and quality');
       const validLines = lines.filter(l => l.shade_id && parseInt(l.taka_count) > 0);
       if (validLines.length === 0) throw new Error('Please add at least one valid shade line');
-      
-      const id = await repo.createOrder({
-        ...formData,
-        lines: validLines
-      });
+      const id = await repo.createOrder({ ...formData, lines: validLines });
       navigate(`/orders/${id}`);
-    } catch (err) {
-      alert(err.message);
-    }
+    });
   };
 
   const totalTakas = lines.reduce((s, l) => s + (parseInt(l.taka_count) || 0), 0);
 
-  if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
+  if (loading || loadError) return <Drawer isOpen onClose={() => navigate('/orders')}>{loading ? <div className="p-12 text-center text-slate-500">Loading...</div> : <Alert>{loadError}</Alert>}</Drawer>;
 
   return (
     <Drawer isOpen={true} onClose={() => navigate('/orders')}>
@@ -109,7 +97,7 @@ export default function CreateOrderPage() {
                 </Select>
               </Field>
               <Field label="Quality *">
-                <Select required value={formData.quality_id} onChange={e => setFormData(p => ({ ...p, quality_id: e.target.value, lines: [] }))}>
+                <Select required value={formData.quality_id} onChange={e => { setFormData(p => ({ ...p, quality_id: e.target.value })); setLines([]); }}>
                   <option value="">Select Quality...</option>
                   {qualities.map(q => <option key={q.id} value={q.id}>{q.nick_name}</option>)}
                 </Select>
@@ -138,7 +126,7 @@ export default function CreateOrderPage() {
               <div className="space-y-3">
                 {lines.map((l, idx) => {
                   const shade = shades.find(s => s.id.toString() === l.shade_id);
-                  const avail = shade && availability ? (availability.byShade[shade.id]?.ready.takas || 0) : 0;
+                  const avail = shade && availability ? (availability.shades.find(x => x.shade_id === shade.id)?.finished.takas || 0) : 0;
                   const req = parseInt(l.taka_count) || 0;
                   const canFulfill = req > 0 && req <= avail;
                   
@@ -172,7 +160,7 @@ export default function CreateOrderPage() {
                       <div className="w-full sm:w-32 pt-1 sm:pt-7">
                         {shade ? (
                           <div className={`text-sm font-medium flex items-center ${canFulfill ? 'text-emerald-600' : 'text-amber-600'}`}>
-                            Ready: {avail}
+                            Finished available: {avail}
                           </div>
                         ) : null}
                       </div>
@@ -195,57 +183,12 @@ export default function CreateOrderPage() {
           <Card className="p-6 bg-slate-50 border-slate-200 sticky top-6">
             <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">Availability Panel</h3>
             
-            {!availability ? (
-              <div className="text-sm text-slate-500 py-4 text-center">Select a quality to view stock.</div>
-            ) : (
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-3 pb-4 border-b border-slate-200">
-                  <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
-                    <div className="text-xs text-slate-500 mb-1">Godown Grey</div>
-                    <div className="font-semibold text-slate-900">{availability.godownGrey.takas} tk</div>
-                  </div>
-                  <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
-                    <div className="text-xs text-slate-500 mb-1">Mill Grey</div>
-                    <div className="font-semibold text-slate-900">{availability.millGrey.takas} tk</div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center">
-                    <LayoutDashboard className="w-3.5 h-3.5 mr-1" /> Requested Shades
-                  </h4>
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-                    {lines.filter(l => l.shade_id).map(l => {
-                      const shade = shades.find(s => s.id.toString() === l.shade_id);
-                      if (!shade) return null;
-                      const stats = availability.byShade[shade.id] || { dyeing: {takas:0}, finished: {takas:0}, ready: {takas:0} };
-                      return (
-                        <div key={l.id} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: shade.hex }} />
-                            <span className="font-medium text-sm text-slate-900">{shade.number}</span>
-                            <span className="text-xs text-slate-500 ml-auto">Req: {l.taka_count || 0}</span>
-                          </div>
-                          <div className="flex justify-between text-[11px] font-medium text-slate-500">
-                            <span>Ready: <span className="text-emerald-600">{stats.ready.takas}</span></span>
-                            <span>Fin: <span className="text-amber-600">{stats.finished.takas}</span></span>
-                            <span>Dye: <span className="text-violet-600">{stats.dyeing.takas}</span></span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {lines.filter(l => l.shade_id).length === 0 && (
-                      <div className="text-xs text-slate-400">Add lines to see shade-specific inventory.</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            
+            <AvailabilityPanel data={availability} needs={needs} />
+            <Alert className="mt-4">{error}</Alert>
             <div className="mt-8 pt-6 border-t border-slate-200">
-              <Button type="submit" className="w-full h-12 text-base shadow-sm" disabled={totalTakas === 0 || !formData.customer_id}>
+              <Button type="submit" className="w-full h-12 text-base shadow-sm" disabled={busy || totalTakas === 0 || !formData.customer_id}>
                 <Save className="w-5 h-5 mr-2" />
-                Create Order
+                {busy ? 'Saving…' : 'Create Order'}
               </Button>
             </div>
           </Card>
