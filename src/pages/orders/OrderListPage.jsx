@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Outlet } from 'react-router-dom';
-import { PageHeader, Card, Button, Input, Table, Th, Td, Badge, Empty } from '../../components/ui';
+import { PageHeader, Card, Button, Input, Table, Th, Td, Badge, Empty, LoadState, Pager, usePaged } from '../../components/ui';
+import { fmtM, fmtDate } from '../../lib/format';
 import { Plus, Search, ChevronRight, ShoppingCart } from 'lucide-react';
 import * as repo from '../../db/repo';
 
@@ -9,6 +10,7 @@ export default function OrderListPage() {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
   const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     async function load() {
@@ -16,15 +18,13 @@ export default function OrderListPage() {
         const data = await repo.listOrders();
         setOrders(data);
       } catch (e) {
-        console.error(e);
+        setError(e.message);
       } finally {
         setLoading(false);
       }
     }
     load();
   }, []);
-
-  if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
 
   const filtered = orders.filter(o => 
     o.order_no.toLowerCase().includes(search.toLowerCase()) || 
@@ -36,6 +36,9 @@ export default function OrderListPage() {
     if (status === 'DONE') return <Badge variant="success">Completed</Badge>;
     return <Badge variant="primary">Open</Badge>;
   };
+
+  const paged = usePaged(filtered, 50);
+  if (loading || error) return <LoadState loading={loading} error={error} />;
 
   return (
     <div className="space-y-6">
@@ -70,7 +73,7 @@ export default function OrderListPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(o => (
+            {paged.rows.map(o => (
               <tr key={o.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => navigate(`/orders/${o.id}`)}>
                 <Td className="font-medium text-slate-900">
                   <div className="flex items-center gap-2">
@@ -78,7 +81,7 @@ export default function OrderListPage() {
                     {o.order_no}
                   </div>
                 </Td>
-                <Td>{new Date(o.date).toLocaleDateString()}</Td>
+                <Td>{fmtDate(o.date)}</Td>
                 <Td>
                   <div className="font-medium text-slate-900">{o.customer_name}</div>
                   <div className="text-xs text-slate-500">{o.customer_city}</div>
@@ -107,6 +110,7 @@ export default function OrderListPage() {
             )}
           </tbody>
         </Table>
+        <Pager paged={paged} />
       </Card>
       <Outlet />
     </div>

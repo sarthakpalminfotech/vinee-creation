@@ -13,7 +13,8 @@ export async function seed() {
   const M = (t, o) => repo.saveMaster(t, o)
 
   // ---- masters
-  const gGanesh = await M('weaver_groups', { name: 'Ganesh Textile', contact: 'Rameshbhai Patel', phone: '98250 11223', city: 'Surat' })
+  const gGanesh = await M('weaver_groups', { name: 'Ganesh', contact: 'Rameshbhai Patel', phone: '98250 11223', city: 'Surat' })
+  await M('weavers', { group_id: gGanesh, name: 'Ganesh Textiles', gstin: '24AAACG9999T1Z7', phone: '98250 11225' })
   const wGFab = await M('weavers', { group_id: gGanesh, name: 'Ganesh Fabrics', gstin: '24AAACG1234F1Z5', phone: '98250 11223' })
   const wGFas = await M('weavers', { group_id: gGanesh, name: 'Ganesh Fashion', gstin: '24AAACG5678K1Z2', phone: '98250 11224' })
   const gBalaji = await M('weaver_groups', { name: 'Shree Balaji Weaving', contact: 'Mahesh Agarwal', phone: '99090 45678', city: 'Bhiwandi' })
@@ -61,7 +62,9 @@ export async function seed() {
   const po4 = await repo.createPO({ po_no: 'PO-0004', po_date: daysAgo(60), group_id: gGanesh, quality_id: qSilver, meters: 3000, rate: 4.0, taka_length: 100 })
 
   // ---- grey receipts
-  const r1 = await repo.createReceipt({ po_id: po1, weaver_id: wGFab, challan_no: 'GF-501', date: daysAgo(28), destination: 'GODOWN', takas: takas(48) })
+  const r1Takas = takas(48)
+  ;[94.69, 102.58, 103.5].forEach((m, i) => { r1Takas[i].meter = m })
+  const r1 = await repo.createReceipt({ po_id: po1, weaver_id: wGFab, challan_no: 'GF-501', date: daysAgo(28), destination: 'GODOWN', takas: r1Takas })
   await repo.createReceipt({ po_id: po1, weaver_id: wGFas, challan_no: 'GFS-77', date: daysAgo(24), destination: 'MILL', mill_id: mLaxmi, takas: takas(36) })
   const r3 = await repo.createReceipt({ po_id: po2, weaver_id: wBal, challan_no: 'BSM-2231', date: daysAgo(18), destination: 'GODOWN', takas: takas(30) })
   await repo.createReceipt({ po_id: po1, weaver_id: wGFab, challan_no: 'GF-519', date: daysAgo(3), destination: 'GODOWN', takas: takas(24, 49) })

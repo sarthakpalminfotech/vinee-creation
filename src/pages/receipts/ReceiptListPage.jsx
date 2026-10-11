@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Outlet } from 'react-router-dom';
-import { PageHeader, Card, Button, Input, Badge, Table, Th, Td, Empty } from '../../components/ui';
+import { PageHeader, Card, Button, Input, Table, Th, Td, Empty, LoadState, Pager, usePaged } from '../../components/ui';
+import { fmtM, fmtDate } from '../../lib/format';
 import { Plus, Search, ChevronRight, FileText, MapPin, ShieldCheck } from 'lucide-react';
 import * as repo from '../../db/repo';
 
@@ -9,6 +10,7 @@ export default function ReceiptListPage() {
   const [loading, setLoading] = useState(true);
   const [receipts, setReceipts] = useState([]);
   const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     async function load() {
@@ -16,7 +18,7 @@ export default function ReceiptListPage() {
         const data = await repo.listReceipts();
         setReceipts(data);
       } catch (e) {
-        console.error(e);
+        setError(e.message);
       } finally {
         setLoading(false);
       }
@@ -24,14 +26,15 @@ export default function ReceiptListPage() {
     load();
   }, []);
 
-  if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
-
   const filtered = receipts.filter(r => 
     r.challan_no.toLowerCase().includes(search.toLowerCase()) || 
     r.po_no.toLowerCase().includes(search.toLowerCase()) || 
     r.weaver_name.toLowerCase().includes(search.toLowerCase()) ||
     r.nick_name.toLowerCase().includes(search.toLowerCase()) || r.original_name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const paged = usePaged(filtered, 50);
+  if (loading || error) return <LoadState loading={loading} error={error} />;
 
   return (
     <div className="space-y-6">
@@ -66,7 +69,7 @@ export default function ReceiptListPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(r => (
+            {paged.rows.map(r => (
               <tr key={r.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => navigate(`/receipts/${r.id}`)}>
                 <Td className="font-medium text-slate-900">
                   <div className="flex items-center gap-2">
@@ -74,7 +77,7 @@ export default function ReceiptListPage() {
                     {r.challan_no}
                   </div>
                 </Td>
-                <Td>{new Date(r.date).toLocaleDateString()}</Td>
+                <Td>{fmtDate(r.date)}</Td>
                 <Td>
                   <div>{r.po_no}</div>
                   <div className="text-xs text-slate-500">{r.original_name}</div>
@@ -87,7 +90,7 @@ export default function ReceiptListPage() {
                   }
                 </Td>
                 <Td className="text-right font-medium">{r.taka_count}</Td>
-                <Td className="text-right">{r.total_m.toLocaleString()} m</Td>
+                <Td className="text-right">{fmtM(r.total_m)} m</Td>
                 <Td className="text-right">
                   <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-primary-600 inline-block" />
                 </Td>
@@ -102,6 +105,7 @@ export default function ReceiptListPage() {
             )}
           </tbody>
         </Table>
+        <Pager paged={paged} />
       </Card>
       <Outlet />
     </div>

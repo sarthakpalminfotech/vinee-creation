@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Outlet } from 'react-router-dom';
-import { PageHeader, Card, Button, Input, Table, Th, Td, Empty } from '../../components/ui';
+import { PageHeader, Card, Button, Input, Table, Th, Td, Empty, LoadState, Pager, usePaged } from '../../components/ui';
+import { fmtM, fmtDate } from '../../lib/format';
 import { Plus, Search, ChevronRight, Truck } from 'lucide-react';
 import * as repo from '../../db/repo';
 
@@ -9,6 +10,7 @@ export default function DispatchListPage() {
   const [loading, setLoading] = useState(true);
   const [dispatches, setDispatches] = useState([]);
   const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     async function load() {
@@ -16,7 +18,7 @@ export default function DispatchListPage() {
         const data = await repo.listDispatches();
         setDispatches(data);
       } catch (e) {
-        console.error(e);
+        setError(e.message);
       } finally {
         setLoading(false);
       }
@@ -24,18 +26,19 @@ export default function DispatchListPage() {
     load();
   }, []);
 
-  if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
-
   const filtered = dispatches.filter(d => 
     d.dispatch_no.toLowerCase().includes(search.toLowerCase()) || 
     d.mill_name.toLowerCase().includes(search.toLowerCase()) ||
     (d.qualities || '').toLowerCase().includes(search.toLowerCase())
   );
 
+  const paged = usePaged(filtered, 50);
+  if (loading || error) return <LoadState loading={loading} error={error} />;
+
   return (
     <div className="space-y-6">
-      <PageHeader title="Mill Dispatches" description="Send grey fabric from godown to mills for dyeing.">
-        <Button onClick={() => navigate('/dispatch/new')}><Plus className="w-4 h-4 mr-2" /> New Dispatch</Button>
+      <PageHeader title="Mill Challans (grey sent to mills)" description="Send grey fabric from godown to mills for dyeing.">
+        <Button onClick={() => navigate('/dispatch/new')}><Plus className="w-4 h-4 mr-2" /> New Mill Challan</Button>
       </PageHeader>
 
       <Card className="p-4 bg-slate-50 border-b-0 rounded-b-none">
@@ -64,7 +67,7 @@ export default function DispatchListPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(d => (
+            {paged.rows.map(d => (
               <tr key={d.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => navigate(`/dispatch/${d.id}`)}>
                 <Td className="font-medium text-slate-900">
                   <div className="flex items-center gap-2">
@@ -72,13 +75,13 @@ export default function DispatchListPage() {
                     {d.dispatch_no}
                   </div>
                 </Td>
-                <Td>{new Date(d.date).toLocaleDateString()}</Td>
+                <Td>{fmtDate(d.date)}</Td>
                 <Td className="font-medium">{d.mill_name}</Td>
                 <Td>
                   <div className="max-w-[200px] truncate text-slate-600" title={d.qualities}>{d.qualities || '-'}</div>
                 </Td>
                 <Td className="text-right font-medium">{d.taka_count}</Td>
-                <Td className="text-right">{d.total_m.toLocaleString()} m</Td>
+                <Td className="text-right">{fmtM(d.total_m)} m</Td>
                 <Td className="text-right">
                   <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-primary-600 inline-block" />
                 </Td>
@@ -93,6 +96,7 @@ export default function DispatchListPage() {
             )}
           </tbody>
         </Table>
+        <Pager paged={paged} />
       </Card>
       <Outlet />
     </div>

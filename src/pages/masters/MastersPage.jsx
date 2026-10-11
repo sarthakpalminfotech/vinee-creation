@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PageHeader, Card, Button, Input, Modal, Field, Table, Th, Td, Empty } from '../../components/ui';
+import { PageHeader, Card, Button, Input, Modal, Field, Table, Th, Td, Empty, Alert } from '../../components/ui';
 import { Search, Plus, Edit, Trash2, ChevronDown, ChevronRight, AlertCircle, Palette } from 'lucide-react';
 import * as repo from '../../db/repo';
 
 const TABS = [
-  { id: 'weavers', label: 'Weavers' },
+  { id: 'weavers', label: 'Parties' },
   { id: 'mills', label: 'Mills' },
   { id: 'customers', label: 'Customers' },
   { id: 'qualities', label: 'Qualities' },
@@ -28,6 +28,8 @@ export default function MastersPage() {
   const [modalType, setModalType] = useState(null); // 'weaver_group', 'weaver', 'mill', etc.
   const [editItem, setEditItem] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [pageError, setPageError] = useState('');
+  const [saving, setSaving] = useState(false);
   
   // Form State
   const [formData, setFormData] = useState({});
@@ -69,21 +71,27 @@ export default function MastersPage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
     try {
       await repo.saveMaster(modalType, formData);
       setModalOpen(false);
       loadData();
     } catch (err) {
       setErrorMsg(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async (table, id) => {
+    if (!confirm('Delete this record? This cannot be undone.')) return;
+    setPageError('');
     try {
       await repo.removeMaster(table, id);
       loadData();
     } catch (err) {
-      alert(err.message);
+      setPageError(err.message);
     }
   };
 
@@ -95,14 +103,14 @@ export default function MastersPage() {
     if (['mills', 'customers', 'weaver_groups'].includes(modalType)) {
       return (
         <form onSubmit={handleSave} className="space-y-4">
-          <Field label="Name"><Input required placeholder="e.g. Ganesh Textile" value={formData.name || ''} onChange={e => handleFormChange('name', e.target.value)} /></Field>
+          <Field label="Name"><Input required placeholder="e.g. Ganesh" value={formData.name || ''} onChange={e => handleFormChange('name', e.target.value)} /></Field>
           <Field label="Contact Person"><Input placeholder="e.g. Ramesh Bhai" value={formData.contact || ''} onChange={e => handleFormChange('contact', e.target.value)} /></Field>
           <Field label="Phone"><Input placeholder="e.g. 98250 12345" value={formData.phone || ''} onChange={e => handleFormChange('phone', e.target.value)} /></Field>
           <Field label="City"><Input placeholder="e.g. Surat" value={formData.city || ''} onChange={e => handleFormChange('city', e.target.value)} /></Field>
-          {errorMsg && <div className="text-red-500 text-sm">{errorMsg}</div>}
+          <Alert>{errorMsg}</Alert>
           <div className="pt-4 flex justify-end gap-3">
             <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button type="submit">Save</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
           </div>
         </form>
       );
@@ -111,13 +119,13 @@ export default function MastersPage() {
     if (modalType === 'weavers') {
       return (
         <form onSubmit={handleSave} className="space-y-4">
-          <Field label="Firm Name"><Input required placeholder="e.g. Ganesh Fabrics" value={formData.name || ''} onChange={e => handleFormChange('name', e.target.value)} /></Field>
+          <Field label="Party (firm) name"><Input required placeholder="e.g. Ganesh Fabrics" value={formData.name || ''} onChange={e => handleFormChange('name', e.target.value)} /></Field>
           <Field label="GSTIN"><Input placeholder="e.g. 24AAACG1234F1Z5" value={formData.gstin || ''} onChange={e => handleFormChange('gstin', e.target.value)} /></Field>
           <Field label="Phone"><Input placeholder="e.g. 98250 11223" value={formData.phone || ''} onChange={e => handleFormChange('phone', e.target.value)} /></Field>
-          {errorMsg && <div className="text-red-500 text-sm">{errorMsg}</div>}
+          <Alert>{errorMsg}</Alert>
           <div className="pt-4 flex justify-end gap-3">
             <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button type="submit">Save</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
           </div>
         </form>
       );
@@ -126,14 +134,14 @@ export default function MastersPage() {
     if (modalType === 'qualities') {
       return (
         <form onSubmit={handleSave} className="space-y-4">
-          <Field label="Original Name"><Input required placeholder="e.g. 100% Polyester Crape" value={formData.original_name || ''} onChange={e => handleFormChange('original_name', e.target.value)} /></Field>
-          <Field label="Nick Name (Trade Name)"><Input required placeholder="e.g. Gold Lava" value={formData.nick_name || ''} onChange={e => handleFormChange('nick_name', e.target.value)} /></Field>
+          <Field label="Original name (used with weavers)"><Input required placeholder="e.g. 100% Polyester Crape" value={formData.original_name || ''} onChange={e => handleFormChange('original_name', e.target.value)} /></Field>
+          <Field label="Nickname (used with mills and customers)"><Input required placeholder="e.g. Gold Lava" value={formData.nick_name || ''} onChange={e => handleFormChange('nick_name', e.target.value)} /></Field>
           <Field label="Default Taka Length (m)"><Input type="number" placeholder="e.g. 100" required value={formData.taka_length || ''} onChange={e => handleFormChange('taka_length', e.target.value)} /></Field>
           <Field label="Notes"><Input placeholder="e.g. Shrinks 5% after dyeing" value={formData.notes || ''} onChange={e => handleFormChange('notes', e.target.value)} /></Field>
-          {errorMsg && <div className="text-red-500 text-sm">{errorMsg}</div>}
+          <Alert>{errorMsg}</Alert>
           <div className="pt-4 flex justify-end gap-3">
             <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button type="submit">Save</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
           </div>
         </form>
       );
@@ -142,12 +150,12 @@ export default function MastersPage() {
     if (modalType === 'locations') {
       return (
         <form onSubmit={handleSave} className="space-y-4">
-          <Field label="Shop"><Input required placeholder="e.g. 101" value={formData.shop || ''} onChange={e => handleFormChange('shop', e.target.value)} /></Field>
-          <Field label="Rack"><Input required placeholder="e.g. A2" value={formData.rack || ''} onChange={e => handleFormChange('rack', e.target.value)} /></Field>
-          {errorMsg && <div className="text-red-500 text-sm">{errorMsg}</div>}
+          <Field label="Shop"><Input required placeholder="e.g. Shop 6065" value={formData.shop || ''} onChange={e => handleFormChange('shop', e.target.value)} /></Field>
+          <Field label="Rack"><Input required placeholder="e.g. Rack-A" value={formData.rack || ''} onChange={e => handleFormChange('rack', e.target.value)} /></Field>
+          <Alert>{errorMsg}</Alert>
           <div className="pt-4 flex justify-end gap-3">
             <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button type="submit">Save</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
           </div>
         </form>
       );
@@ -157,10 +165,10 @@ export default function MastersPage() {
       return (
         <form onSubmit={handleSave} className="space-y-4">
           <Field label="Chart Name"><Input required placeholder="e.g. Summer 2026 Collection" value={formData.name || ''} onChange={e => handleFormChange('name', e.target.value)} /></Field>
-          {errorMsg && <div className="text-red-500 text-sm">{errorMsg}</div>}
+          <Alert>{errorMsg}</Alert>
           <div className="pt-4 flex justify-end gap-3">
             <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button type="submit">Save</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
           </div>
         </form>
       );
@@ -177,10 +185,10 @@ export default function MastersPage() {
               <Input required value={formData.hex || ''} onChange={e => handleFormChange('hex', e.target.value)} />
             </div>
           </Field>
-          {errorMsg && <div className="text-red-500 text-sm">{errorMsg}</div>}
+          <Alert>{errorMsg}</Alert>
           <div className="pt-4 flex justify-end gap-3">
             <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button type="submit">Save</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
           </div>
         </form>
       );
@@ -210,7 +218,7 @@ export default function MastersPage() {
               onDeleteFirm={(id) => handleDelete('weavers', id)}
             />
           ))}
-          {filtered.length === 0 && <Empty title="No weaver groups found" description="Add a weaver group to get started." />}
+          {filtered.length === 0 && <Empty title="No party groups found" description="Add a party group (one owner) and then its firms." />}
         </div>
       );
     }
@@ -252,8 +260,8 @@ export default function MastersPage() {
                 <button onClick={() => handleOpenModal('qualities', q)} className="p-1.5 text-slate-400 hover:text-primary-600 rounded"><Edit className="w-4 h-4" /></button>
                 <button onClick={() => handleDelete('qualities', q.id)} className="p-1.5 text-slate-400 hover:text-red-600 rounded"><Trash2 className="w-4 h-4" /></button>
               </div>
-              <div className="font-bold text-lg text-slate-900">{q.nick_name}</div>
-              <div className="text-sm text-slate-500">{q.original_name}</div>
+              <div className="font-bold text-lg text-slate-900">{q.nick_name} <span className="text-xs font-normal text-slate-400">nickname</span></div>
+              <div className="text-sm text-slate-500">{q.original_name} <span className="text-xs text-slate-400">original</span></div>
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-sm">
                 <span className="text-slate-500">Taka Length</span>
                 <span className="font-medium text-slate-900">{q.taka_length}m</span>
@@ -336,7 +344,7 @@ export default function MastersPage() {
 
   const getAddTitle = () => {
     switch (tab) {
-      case 'weavers': return 'Add Weaver Group';
+      case 'weavers': return 'Add Party Group';
       case 'mills': return 'Add Mill';
       case 'customers': return 'Add Customer';
       case 'qualities': return 'Add Quality';
@@ -410,12 +418,12 @@ function WeaverGroupCard({ group, onEdit, onDelete, onAddFirm, onEditFirm, onDel
           <div>
             <div className="font-semibold text-slate-900 text-base">{group.name}</div>
             <div className="text-xs text-slate-500 flex gap-2">
-              <span>{group.city || 'No city'}</span> • <span>{group.firms.length} firms</span>
+              <span>{group.city || 'No city'}</span> • <span>{group.firms.length} parties</span>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={onAddFirm}><Plus className="w-4 h-4 mr-1" /> Add Firm</Button>
+          <Button variant="ghost" size="sm" onClick={onAddFirm}><Plus className="w-4 h-4 mr-1" /> Add Party</Button>
           <div className="w-px h-4 bg-slate-300 mx-1"></div>
           <button onClick={onEdit} className="p-1.5 text-slate-400 hover:text-primary-600 rounded hover:bg-white"><Edit className="w-4 h-4" /></button>
           <button onClick={onDelete} className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-white"><Trash2 className="w-4 h-4" /></button>
@@ -425,7 +433,7 @@ function WeaverGroupCard({ group, onEdit, onDelete, onAddFirm, onEditFirm, onDel
       {expanded && (
         <div className="p-0">
           <Table>
-            <thead><tr><Th className="pl-14">Firm Name</Th><Th>GSTIN</Th><Th>Phone</Th><Th className="w-24 text-right">Actions</Th></tr></thead>
+            <thead><tr><Th className="pl-14">Party</Th><Th>GSTIN</Th><Th>Phone</Th><Th className="w-24 text-right">Actions</Th></tr></thead>
             <tbody>
               {group.firms.map(f => (
                 <tr key={f.id}>
@@ -438,7 +446,7 @@ function WeaverGroupCard({ group, onEdit, onDelete, onAddFirm, onEditFirm, onDel
               ))}
               {group.firms.length === 0 && (
                 <tr>
-                  <Td colSpan={4} className="text-center py-6 text-slate-500">No firms added yet.</Td>
+                  <Td colSpan={4} className="text-center py-6 text-slate-500">No parties added yet.</Td>
                 </tr>
               )}
             </tbody>

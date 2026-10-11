@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Outlet } from 'react-router-dom';
-import { PageHeader, Card, Button, Input, Table, Th, Td, Badge, Empty } from '../../components/ui';
+import { PageHeader, Card, Button, Input, Table, Th, Td, Badge, Empty, LoadState, Pager, usePaged } from '../../components/ui';
+import { fmtM, fmtDate } from '../../lib/format';
 import { Plus, Search, ChevronRight, Scissors } from 'lucide-react';
 import * as repo from '../../db/repo';
 
@@ -9,6 +10,7 @@ export default function ProgramListPage() {
   const [loading, setLoading] = useState(true);
   const [programs, setPrograms] = useState([]);
   const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     async function load() {
@@ -16,15 +18,13 @@ export default function ProgramListPage() {
         const data = await repo.listPrograms();
         setPrograms(data);
       } catch (e) {
-        console.error(e);
+        setError(e.message);
       } finally {
         setLoading(false);
       }
     }
     load();
   }, []);
-
-  if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
 
   const filtered = programs.filter(p => 
     p.program_no.toLowerCase().includes(search.toLowerCase()) || 
@@ -37,6 +37,9 @@ export default function ProgramListPage() {
     if (status === 'PARTIAL') return <Badge variant="warning">Partial</Badge>;
     return <Badge variant="primary">In Dyeing</Badge>;
   };
+
+  const paged = usePaged(filtered, 50);
+  if (loading || error) return <LoadState loading={loading} error={error} />;
 
   return (
     <div className="space-y-6">
@@ -71,7 +74,7 @@ export default function ProgramListPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(p => {
+            {paged.rows.map(p => {
               const pct = Math.min(100, (p.received_takas / p.total_takas) * 100) || 0;
               return (
                 <tr key={p.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => navigate(`/programs/${p.id}`)}>
@@ -81,7 +84,7 @@ export default function ProgramListPage() {
                       {p.program_no}
                     </div>
                   </Td>
-                  <Td>{new Date(p.date).toLocaleDateString()}</Td>
+                  <Td>{fmtDate(p.date)}</Td>
                   <Td className="font-medium">{p.mill_name}</Td>
                   <Td>{p.nick_name}</Td>
                   <Td>
@@ -125,6 +128,7 @@ export default function ProgramListPage() {
             )}
           </tbody>
         </Table>
+        <Pager paged={paged} />
       </Card>
       <Outlet />
     </div>
