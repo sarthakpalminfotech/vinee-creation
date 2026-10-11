@@ -765,7 +765,12 @@ export async function dashboard() {
 
 // ---------------------------------------------------------------- setup
 /** Demo data is written ONLY into a completely empty local database (never a remote one unless explicitly allowed). */
-export async function ensureSeed() {
+let seeding
+export function ensureSeed() {
+  // memoised: React StrictMode mounts twice, and two concurrent seeds would insert the demo data twice
+  return (seeding ||= seedIfEmpty())
+}
+async function seedIfEmpty() {
   if (mode !== 'local' && import.meta.env?.VITE_ALLOW_DEMO_SEED !== 'true') return
   for (const t of ['qualities', 'weaver_groups', 'mills', 'customers', 'locations', 'shade_charts', 'grey_pos', 'grey_receipts', 'takas', 'orders']) {
     const r = await one(`SELECT COUNT(*) AS c FROM ${t}`)

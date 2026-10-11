@@ -2,6 +2,8 @@
 
 Project: **Vinee Creation** — textile trading ERP prototype (grey PO → weaver challan → godown racks → mill → dyeing program → finished → folding → customer orders, with per-taka wastage).
 
+> **Current authority: `docs/` (SPEC, AUDIT, tasks/, PROGRESS).** The `specs/` dots below are the original generated plan; where they disagree, `docs/SPEC.md` wins. Run `npm test` before committing.
+
 ## Resume protocol ("dots")
 The work is split into small, independent **dots** (`specs/dots/Dxx-*.md`). Each dot has: Goal → Build → Checks → DoD.
 1. Read `specs/01-business.md` (domain), `specs/02-architecture.md` (stack/rules), `specs/03-data-model.md`.

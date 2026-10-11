@@ -97,3 +97,11 @@ Regression checklist of things that WORKED at baseline (must still pass at the e
 
 ## 8. Decisions and open questions
 See `docs/SPEC.md` §Decisions and §Open questions.
+
+## 9. Final verification (end of session 1)
+- `npm test` → **56 passed, 0 failed** (baseline: 18/26 on the same scenario). `npm run build` OK. Lint: warnings only.
+- End-to-end scenario §4 (actual numbers): Receipt 1 = 48 takas, **4,800.77 m** exact (94.69 / 102.58 / 103.5 kept), PO → Partly received; Receipt 2 = 20 takas direct to M1, **1,991.00 m**, nothing added to godown; 24 → Rack-A, 24 → Rack-B; send 36 of 48 → picking list Rack-A 24 / Rack-B 12, challan shows *Gold Lava*, 12 stay in godown; program 48 (36 + 12 direct) 24 × 37 + 24 × 39; partial mill receipt 30 (+1 direct taka) → 17 left in dyeing; folding 10 with corrected meters; per-taka chains correct for a godown taka and a direct taka; PO closed short → status Closed (short), shortfall = 50,000 − received; inventory 12 + 25 + 17 + 31 (+0 sold) reconciles to all 68… active takas; availability returns both shades.
+- Regression checklist from §5: every item still passes (they are the first checks of `npm test`). Seed: same 167 takas and same status distribution as baseline (GODOWN 83, MILL 4, DYEING 46, FINISHED 14, FOLDED 10, SOLD 10).
+- Browser smoke: dashboard, inventory (reconciliation banner), rack page, mill challan with picking list, shrinkage report, availability page, receipt grid (500-row paste ≈ 1 s, total 49,999.77 exact); no console errors. Found and fixed during this: StrictMode seeded demo data twice (every number doubled) — I-23.
+- **Not verified:** Turso/libSQL transaction path (no test DB permitted); paper print output; phone-width visual check; IndexedDB data of an existing real browser profile (use the new backup button before upgrading).
+- New issue found while fixing: **I-23 (P0)** double demo seed under React StrictMode — fixed (memoised `ensureSeed`).

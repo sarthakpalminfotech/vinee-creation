@@ -135,6 +135,18 @@ try {
   } else check('inventory views', false, 'no inventoryCounts')
   eq('no taka lost', (await repo.listTakas()).length, 68)
 
+  // extra rules: masters validation, PO status RECEIVED vs CLOSED, restrictions on delete
+  await expectThrow('duplicate rack rejected', () => M('locations', { shop: 'shop 6065', rack: 'rack-a' }))
+  await expectThrow('bad shade colour rejected', () => M('shades', { chart_id: chart, number: '40', name: 'x', hex: 'red' }))
+  await expectThrow('duplicate shade number in chart rejected', () => M('shades', { chart_id: chart, number: '37', name: 'x', hex: '#000000' }))
+  await expectThrow('master in use cannot be deleted', () => repo.removeMaster('mills', m1))
+  const po2 = await repo.createPO({ po_no: 'FULL-1', po_date: '2026-02-01', group_id: grp, quality_id: q, meters: 200, rate: 3, taka_length: 100 })
+  await expectThrow('duplicate PO number rejected', () => repo.createPO({ po_no: ' full-1 ', po_date: '2026-02-01', group_id: grp, quality_id: q, meters: 200, rate: 3 }))
+  await repo.createReceipt({ po_id: po2, weaver_id: fFab, challan_no: 'F-1', date: '2026-02-02', destination: 'GODOWN', takas: [{ taka_no: 1, meter: 100.5 }, { taka_no: 2, meter: 99.5 }] })
+  eq('fully received PO status', (await repo.getPO(po2)).status, 'RECEIVED')
+  await expectThrow('more than 2 decimals rejected', () => repo.createReceipt({ po_id: po2, weaver_id: fFab, challan_no: 'F-2', date: '2026-02-02', destination: 'GODOWN', takas: [{ taka_no: 1, meter: 99.123 }] }))
+  eq('inventory still reconciles', (await repo.inventoryCounts()).reconciled, true)
+
   // 12. availability for Gold Lava, shades 37 and 39
   if (repo.availabilityDetail) {
     const av = await repo.availabilityDetail(q, [sh['37'], sh['39']])
