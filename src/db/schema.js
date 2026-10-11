@@ -20,9 +20,23 @@ export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS order_lines (id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER NOT NULL, shade_id INTEGER NOT NULL, taka_count INTEGER NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_takas_status ON takas(status)`,
   `CREATE INDEX IF NOT EXISTS idx_takas_receipt ON takas(receipt_id)`,
+  // --- audit additions (additive only; see docs/MIGRATIONS.md) ---
+  `CREATE TABLE IF NOT EXISTS taka_moves (id INTEGER PRIMARY KEY AUTOINCREMENT, taka_id INTEGER NOT NULL, at TEXT NOT NULL, from_status TEXT, to_status TEXT NOT NULL, from_location_id INTEGER, to_location_id INTEGER, mill_id INTEGER, ref_type TEXT, ref_id INTEGER, note TEXT)`,
+  `CREATE INDEX IF NOT EXISTS idx_moves_taka ON taka_moves(taka_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_moves_ref ON taka_moves(ref_type, ref_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_takas_dispatch ON takas(dispatch_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_takas_line ON takas(program_line_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_takas_location ON takas(location_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_receipts_po ON grey_receipts(po_id)`,
+]
+
+// Run after SCHEMA; each is allowed to fail (e.g. old data violates the new unique rule).
+export const MIGRATIONS = [
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_takas_receipt_no ON takas(receipt_id, taka_no)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_pos_no ON grey_pos(po_no)`,
 ]
 
 export const TABLES = [
-  'order_lines', 'orders', 'finished_receipts', 'program_lines', 'programs', 'mill_dispatches', 'takas',
+  'taka_moves', 'order_lines', 'orders', 'finished_receipts', 'program_lines', 'programs', 'mill_dispatches', 'takas',
   'grey_receipts', 'grey_pos', 'shades', 'shade_charts', 'locations', 'qualities', 'customers', 'mills', 'weavers', 'weaver_groups',
 ]

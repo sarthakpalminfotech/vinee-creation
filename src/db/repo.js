@@ -1,5 +1,5 @@
 // All domain data access. Pages must only use these functions (see specs/02-architecture.md).
-import { all, one, run, dropAll } from './client'
+import { all, one, run, tx, dropAll, mode } from './client'
 
 export const STATUS_META = {
   GODOWN_GREY: { label: 'Grey · Godown', cls: 'bg-slate-100 text-slate-700', dot: 'bg-slate-400' },
@@ -15,6 +15,19 @@ export const today = () => new Date().toISOString().slice(0, 10)
 const r2 = (n) => Math.round(Number(n) * 100) / 100
 const qs = (arr) => arr.map(() => '?').join(',')
 const num = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
+const base = { all, one, run }
+const chunks = (arr, n) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
+const bad = (msg) => { throw new Error(msg) }
+const nowIso = () => new Date().toISOString()
+/** Meters must be > 0 with at most 2 decimals. Returns the number rounded to 2dp. */
+function meters2(v, label) {
+  const raw = typeof v === 'string' ? v.trim() : v
+  const n = Number(raw)
+  if (raw === '' || raw === null || raw === undefined || !Number.isFinite(n) || n <= 0) bad(`${label}: enter meters greater than 0`)
+  if (Math.abs(n * 100 - Math.round(n * 100)) > 1e-6) bad(`${label}: meters can have at most 2 decimals`)
+  return r2(n)
+}
+export const locLabel = (shop, rack) => (shop ? `${shop} / ${rack}` : 'No rack assigned')
 
 // ---------------------------------------------------------------- masters
 const MASTER_COLS = {
@@ -30,17 +43,41 @@ const MASTER_COLS = {
 const USAGE = {
   weaver_groups: [['weavers', 'group_id'], ['grey_pos', 'group_id']],
   weavers: [['grey_receipts', 'weaver_id']],
-  mills: [['grey_receipts', 'mill_id'], ['mill_dispatches', 'mill_id'], ['programs', 'mill_id']],
+  mills: [['grey_receipts', 'mill_id'], ['mill_dispatches', 'mill_id'], ['programs', 'mill_id'], ['takas', 'mill_id']],
   customers: [['orders', 'customer_id']],
   qualities: [['grey_pos', 'quality_id'], ['programs', 'quality_id'], ['orders', 'quality_id']],
-  locations: [['takas', 'location_id']],
+  locations: [['takas', 'location_id'], ['taka_moves', 'from_location_id'], ['taka_moves', 'to_location_id']],
   shade_charts: [['shades', 'chart_id'], ['programs', 'chart_id']],
   shades: [['program_lines', 'shade_id'], ['order_lines', 'shade_id']],
 }
 
+const REQUIRED = {
+  weaver_groups: ['name'], weavers: ['group_id', 'name'], mills: ['name'], customers: ['name'],
+  qualities: ['original_name', 'nick_name', 'taka_length'], locations: ['shop', 'rack'], shade_charts: ['name'], shades: ['chart_id', 'number', 'hex'],
+}
+const UNIQUE = {
+  weaver_groups: ['name'], weavers: ['group_id', 'name'], mills: ['name'], customers: ['name'],
+  qualities: ['nick_name'], locations: ['shop', 'rack'], shade_charts: ['name'], shades: ['chart_id', 'number'],
+}
+
 export async function saveMaster(table, obj) {
   const cols = MASTER_COLS[table]
-  const vals = cols.map((c) => (obj[c] === '' ? null : obj[c]))
+  const clean = {}
+  for (const c of cols) {
+    const v = typeof obj[c] === 'string' ? obj[c].trim() : obj[c]
+    clean[c] = v === '' ? null : v
+  }
+  for (const c of REQUIRED[table] || []) if (clean[c] === null || clean[c] === undefined) bad(`${c.replace(/_/g, ' ')} is required`)
+  if (table === 'qualities') { clean.taka_length = Number(clean.taka_length); if (!(clean.taka_length > 0)) bad('Taka length must be greater than 0') }
+  if (table === 'shades' && !/^#[0-9a-fA-F]{6}$/.test(clean.hex)) bad('Colour must be a hex value like #A1B2C3')
+  const uq = UNIQUE[table]
+  if (uq) {
+    const where = uq.map((c) => (typeof clean[c] === 'string' ? `LOWER(TRIM(${c}))=?` : `${c}=?`)).join(' AND ')
+    const args = uq.map((c) => (typeof clean[c] === 'string' ? clean[c].toLowerCase() : clean[c]))
+    const dup = await one(`SELECT id FROM ${table} WHERE ${where} AND id<>?`, [...args, obj.id || 0])
+    if (dup) bad(`Already exists: ${uq.map((c) => clean[c]).join(' / ')}`)
+  }
+  const vals = cols.map((c) => clean[c])
   if (obj.id) {
     await run(`UPDATE ${table} SET ${cols.map((c) => `${c}=?`).join(',')} WHERE id=?`, [...vals, obj.id])
     return obj.id
@@ -71,8 +108,8 @@ export async function listWeaverGroups() {
   return groups.map((g) => ({ ...g, firms: weavers.filter((w) => w.group_id === g.id) }))
 }
 
-async function nextNo(table, prefix) {
-  const r = await one(`SELECT COUNT(*) AS c FROM ${table}`)
+async function nextNo(table, prefix, q = base) {
+  const r = await q.one(`SELECT COALESCE(MAX(id),0) AS c FROM ${table}`)
   return `${prefix}-${String(Number(r.c) + 1).padStart(4, '0')}`
 }
 export const nextPoNo = () => nextNo('grey_pos', 'PO')
@@ -83,7 +120,8 @@ const TAKA_SQL = `SELECT t.*, r.challan_no, r.date AS receipt_date, r.destinatio
   w.name AS weaver_name, g.id AS group_id, g.name AS group_name,
   p.po_no, p.quality_id, p.taka_length, q.nick_name, q.original_name,
   l.shop, l.rack, m.name AS mill_name, d.dispatch_no,
-  pl.program_id, pl.shade_id, pr.program_no, s.number AS shade_no, s.hex AS shade_hex, s.name AS shade_name,
+  pl.program_id, pl.shade_id, pr.program_no, pr.mill_id AS program_mill_id, pm.name AS program_mill_name,
+  s.number AS shade_no, s.hex AS shade_hex, s.name AS shade_name,
   fr.challan_no AS finished_challan, o.order_no
   FROM takas t
   JOIN grey_receipts r ON r.id=t.receipt_id
@@ -96,11 +134,17 @@ const TAKA_SQL = `SELECT t.*, r.challan_no, r.date AS receipt_date, r.destinatio
   LEFT JOIN mill_dispatches d ON d.id=t.dispatch_id
   LEFT JOIN program_lines pl ON pl.id=t.program_line_id
   LEFT JOIN programs pr ON pr.id=pl.program_id
+  LEFT JOIN mills pm ON pm.id=pr.mill_id
   LEFT JOIN shades s ON s.id=pl.shade_id
   LEFT JOIN finished_receipts fr ON fr.id=t.finished_receipt_id
   LEFT JOIN orders o ON o.id=t.order_id`
 
-/** Per-taka shrinkage lineage. Formulas: specs/01-business.md */
+/**
+ * Per-taka shrinkage chain (audit brief §2.9):
+ *   weaver grey meter → [mill grey meter] → finished meter → folded meter.
+ * Start = weaver challan meter; for direct-to-mill takas the weaver step is left out and the chain
+ * starts at the mill's grey meter. `weaverLoss` (vs nominal taka length) is informational only.
+ */
 export function withLineage(t) {
   const direct = t.destination === 'MILL'
   const nominal = Number(t.taka_length) || 100
@@ -109,13 +153,14 @@ export function withLineage(t) {
   const finished = num(t.finished_meter)
   const folded = num(t.folded_meter)
   const weaverLoss = direct ? null : r2(nominal - grey)
+  const greyToMill = direct ? null : r2(grey - millGrey)
   const finishLoss = finished != null ? r2(millGrey - finished) : null
   const foldLoss = folded != null && finished != null ? r2(finished - folded) : null
-  const start = direct ? millGrey : nominal
+  const start = direct ? millGrey : grey
   const end = folded ?? finished
   const totalLoss = end != null ? r2(start - end) : null
   return {
-    ...t, direct, nominal, millGrey, weaverLoss, finishLoss, foldLoss, start, totalLoss,
+    ...t, direct, nominal, millGrey, weaverLoss, greyToMill, finishLoss, foldLoss, start, end, totalLoss,
     weaverPct: weaverLoss != null ? r2((weaverLoss / nominal) * 100) : null,
     finishPct: finishLoss != null ? r2((finishLoss / millGrey) * 100) : null,
     foldPct: foldLoss != null ? r2((foldLoss / finished) * 100) : null,
@@ -124,32 +169,122 @@ export function withLineage(t) {
   }
 }
 
-export async function listTakas(where = '', args = []) {
-  return (await all(`${TAKA_SQL} ${where} ORDER BY r.date, r.id, t.id`, args)).map(withLineage)
+export async function listTakas(where = '', args = [], q = base) {
+  return (await q.all(`${TAKA_SQL} ${where} ORDER BY r.date, r.id, t.id`, args)).map(withLineage)
+}
+
+// ---- taka state machine ---------------------------------------------------
+// GODOWN_GREY → MILL_GREY → IN_DYEING → FINISHED → FOLDED → SOLD   (direct receipts start at MILL_GREY)
+// Every transition is checked here (server-side of the UI) and logged in taka_moves.
+
+async function insertMoves(q, list) {
+  const at = nowIso()
+  for (const part of chunks(list, 80)) {
+    await q.run(
+      `INSERT INTO taka_moves (taka_id,at,from_status,to_status,from_location_id,to_location_id,mill_id,ref_type,ref_id,note) VALUES ${part.map(() => '(?,?,?,?,?,?,?,?,?,?)').join(',')}`,
+      part.flatMap((m) => [m.taka_id, at, m.from_status ?? null, m.to_status, m.from_location_id ?? null, m.to_location_id ?? null, m.mill_id ?? null, m.ref_type ?? null, m.ref_id ?? null, m.note ?? null]),
+    )
+  }
+}
+
+/** Loads the takas by id and demands every one is in `status`. Throws a readable error otherwise. */
+async function requireTakas(q, ids, status, action) {
+  const uniq = [...new Set(ids.map(Number))]
+  if (uniq.length !== ids.length) bad('The same taka was selected more than once')
+  const found = []
+  for (const part of chunks(uniq, 400)) {
+    found.push(...(await q.all(
+      `SELECT t.id, t.status, t.location_id, t.mill_id, t.program_line_id, t.taka_no, r.challan_no FROM takas t JOIN grey_receipts r ON r.id=t.receipt_id WHERE t.id IN (${qs(part)})`, part)))
+  }
+  if (found.length !== uniq.length) bad('Some selected takas no longer exist')
+  const wrong = found.filter((t) => t.status !== status)
+  if (wrong.length) {
+    const sample = wrong.slice(0, 5).map((t) => `${t.challan_no}/${t.taka_no} (${STATUS_META[t.status]?.label || t.status})`).join(', ')
+    bad(`Cannot ${action}: ${wrong.length} taka(s) are not "${STATUS_META[status].label}" — ${sample}${wrong.length > 5 ? '…' : ''}`)
+  }
+  return found
+}
+
+async function updateTakas(q, ids, setSql, setArgs, whereStatus) {
+  let changed = 0
+  for (const part of chunks(ids, 400)) {
+    const r = await q.run(`UPDATE takas SET ${setSql} WHERE id IN (${qs(part)}) AND status=?`, [...setArgs, ...part, whereStatus])
+    changed += r.changes
+  }
+  if (changed !== ids.length) bad('Some takas changed while saving — nothing was saved, please reload and try again')
 }
 
 export async function assignLocation(ids, locationId) {
-  if (!ids.length) return
-  await run(`UPDATE takas SET location_id=? WHERE id IN (${qs(ids)})`, [locationId, ...ids])
+  if (!ids?.length) bad('Select at least one taka')
+  if (!locationId) bad('Choose a rack')
+  return tx(async (q) => {
+    const loc = await q.one('SELECT id FROM locations WHERE id=?', [locationId])
+    if (!loc) bad('That rack does not exist')
+    const rows = await requireTakas(q, ids, 'GODOWN_GREY', 'assign a rack')
+    const moving = rows.filter((t) => Number(t.location_id) !== Number(locationId))
+    if (moving.length) {
+      for (const part of chunks(moving.map((t) => t.id), 400)) {
+        await q.run(`UPDATE takas SET location_id=? WHERE id IN (${qs(part)}) AND status='GODOWN_GREY'`, [locationId, ...part])
+      }
+      await insertMoves(q, moving.map((t) => ({
+        taka_id: t.id, from_status: 'GODOWN_GREY', to_status: 'GODOWN_GREY', from_location_id: t.location_id, to_location_id: locationId,
+        note: t.location_id ? 'MOVE' : 'ASSIGN',
+      })))
+    }
+    return moving.length
+  })
+}
+
+/** Full movement history of one taka (oldest first). */
+export const getTakaHistory = (takaId) =>
+  all(`SELECT mv.*, lf.shop AS from_shop, lf.rack AS from_rack, lt.shop AS to_shop, lt.rack AS to_rack, m.name AS mill_name
+    FROM taka_moves mv LEFT JOIN locations lf ON lf.id=mv.from_location_id LEFT JOIN locations lt ON lt.id=mv.to_location_id LEFT JOIN mills m ON m.id=mv.mill_id
+    WHERE mv.taka_id=? ORDER BY mv.id`, [takaId])
+
+/** Pure helper: group takas by their rack → [{key,label,shop,rack,takas,count,meters}] sorted by shop/rack. */
+export function groupPickList(takas, locOf = (t) => ({ shop: t.shop, rack: t.rack, id: t.location_id })) {
+  const map = new Map()
+  for (const t of takas) {
+    const l = locOf(t)
+    const key = l.id ?? 'none'
+    if (!map.has(key)) map.set(key, { key, shop: l.shop || '', rack: l.rack || '', label: locLabel(l.shop, l.rack), takas: [] })
+    map.get(key).takas.push(t)
+  }
+  const natural = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })
+  return [...map.values()]
+    .map((g) => ({ ...g, takas: g.takas.sort((a, b) => natural(a.taka_no, b.taka_no)), count: g.takas.length, meters: r2(g.takas.reduce((s, t) => s + Number(t.grey_meter), 0)) }))
+    .sort((a, b) => (a.key === 'none') - (b.key === 'none') || natural(a.shop, b.shop) || natural(a.rack, b.rack))
 }
 
 // ---------------------------------------------------------------- grey PO
 const PO_SQL = `SELECT p.*, g.name AS group_name, q.nick_name, q.original_name,
-  (SELECT COALESCE(SUM(t.grey_meter),0) FROM takas t JOIN grey_receipts r ON r.id=t.receipt_id WHERE r.po_id=p.id) AS received_m,
+  (SELECT ROUND(COALESCE(SUM(t.grey_meter),0),2) FROM takas t JOIN grey_receipts r ON r.id=t.receipt_id WHERE r.po_id=p.id) AS received_m,
   (SELECT COUNT(*) FROM takas t JOIN grey_receipts r ON r.id=t.receipt_id WHERE r.po_id=p.id) AS received_takas,
   (SELECT COUNT(*) FROM grey_receipts r WHERE r.po_id=p.id) AS receipt_count
   FROM grey_pos p JOIN weaver_groups g ON g.id=p.group_id JOIN qualities q ON q.id=p.quality_id`
 
+export const PO_STATUS_META = {
+  OPEN: { label: 'Open', variant: 'primary' },
+  PARTIAL: { label: 'Partly received', variant: 'warning' },
+  RECEIVED: { label: 'Received', variant: 'success' },
+  CLOSED: { label: 'Closed (short)', variant: 'danger' },
+}
+
+/** Status per audit brief R-PO-2. shortfall = ordered − received (weaver shrinkage), shown once received/closed. */
 function decoratePo(p) {
-  const received = Number(p.received_m)
-  const status = p.closed ? 'COMPLETED' : received <= 0 ? 'OPEN' : received >= p.meters ? 'COMPLETED' : 'PARTIAL'
+  const received = r2(p.received_m)
+  const full = received >= Number(p.meters)
+  const status = p.closed ? (full ? 'RECEIVED' : 'CLOSED') : received <= 0 ? 'OPEN' : full ? 'RECEIVED' : 'PARTIAL'
+  const done = status === 'RECEIVED' || status === 'CLOSED'
+  const shortfall = done ? r2(p.meters - received) : null
   return {
-    ...p, received_m: r2(received), status,
+    ...p, received_m: received, status,
     pending_m: Math.max(0, r2(p.meters - received)),
     amount: r2(p.meters * p.rate),
     expected_takas: Math.round(p.meters / (p.taka_length || 100)),
     pct: Math.min(100, (received / p.meters) * 100),
-    shortfall: status === 'COMPLETED' ? r2(p.meters - received) : null,
+    shortfall,
+    shortfall_pct: shortfall != null ? r2((shortfall / p.meters) * 100) : null,
   }
 }
 
@@ -160,18 +295,32 @@ export async function getPO(id) {
   return { ...decoratePo(p), receipts: await listReceipts('WHERE r.po_id=?', [id]) }
 }
 export async function createPO(d) {
-  const { lastId } = await run(
-    `INSERT INTO grey_pos (po_no,po_date,group_id,quality_id,meters,rate,taka_length,due_date,notes,image_url) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-    [d.po_no, d.po_date, d.group_id, d.quality_id, Number(d.meters), Number(d.rate), Number(d.taka_length) || 100, d.due_date || null, d.notes || null, d.image_url || null],
-  )
-  return lastId
+  const po_no = String(d.po_no || '').trim()
+  if (!po_no) bad('PO number is required (copy it from the paper PO)')
+  if (!d.group_id) bad('Choose a party group')
+  if (!d.quality_id) bad('Choose a quality')
+  const meters = Number(d.meters), rate = Number(d.rate)
+  if (!(meters > 0)) bad('Ordered meters must be greater than 0')
+  if (!(rate > 0)) bad('Rate must be greater than 0')
+  const taka_length = Number(d.taka_length) || 100
+  return tx(async (q) => {
+    if (await q.one('SELECT id FROM grey_pos WHERE LOWER(TRIM(po_no))=?', [po_no.toLowerCase()])) bad(`PO number ${po_no} already exists`)
+    if (!(await q.one('SELECT id FROM weaver_groups WHERE id=?', [d.group_id]))) bad('Party group not found')
+    if (!(await q.one('SELECT id FROM qualities WHERE id=?', [d.quality_id]))) bad('Quality not found')
+    const { lastId } = await q.run(
+      `INSERT INTO grey_pos (po_no,po_date,group_id,quality_id,meters,rate,taka_length,due_date,notes,image_url) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [po_no, d.po_date || null, d.group_id, d.quality_id, meters, rate, taka_length, d.due_date || null, d.notes || null, d.image_url || null],
+    )
+    return lastId
+  })
 }
+/** Closing short freezes further receipts (decision D-4); re-opening is always possible. */
 export const setPOClosed = (id, closed) => run('UPDATE grey_pos SET closed=? WHERE id=?', [closed ? 1 : 0, id])
 
 // ---------------------------------------------------------------- grey receipts
 const RC_SQL = `SELECT r.*, p.po_no, p.quality_id, p.taka_length, q.nick_name, q.original_name, w.name AS weaver_name, g.name AS group_name, m.name AS mill_name,
   (SELECT COUNT(*) FROM takas t WHERE t.receipt_id=r.id) AS taka_count,
-  (SELECT COALESCE(SUM(grey_meter),0) FROM takas t WHERE t.receipt_id=r.id) AS total_m,
+  (SELECT ROUND(COALESCE(SUM(grey_meter),0),2) FROM takas t WHERE t.receipt_id=r.id) AS total_m,
   (SELECT COUNT(*) FROM takas t WHERE t.receipt_id=r.id AND t.status='GODOWN_GREY') AS godown_count,
   (SELECT COUNT(*) FROM takas t WHERE t.receipt_id=r.id AND t.status='GODOWN_GREY' AND t.location_id IS NULL) AS unassigned_count
   FROM grey_receipts r JOIN grey_pos p ON p.id=r.po_id JOIN qualities q ON q.id=p.quality_id
@@ -186,25 +335,52 @@ export async function getReceipt(id) {
 
 /** d: {po_id, weaver_id, challan_no, date, destination:'GODOWN'|'MILL', mill_id, location_id, image_url, notes, takas:[{taka_no, meter}]} */
 export async function createReceipt(d) {
-  if (!d.takas?.length) throw new Error('Add at least one taka')
+  if (!d.takas?.length) bad('Add at least one taka')
   const toMill = d.destination === 'MILL'
-  const { lastId } = await run(
-    `INSERT INTO grey_receipts (po_id,weaver_id,challan_no,date,destination,mill_id,image_url,notes) VALUES (?,?,?,?,?,?,?,?)`,
-    [d.po_id, d.weaver_id, d.challan_no, d.date, d.destination, toMill ? d.mill_id : null, d.image_url || null, d.notes || null],
-  )
-  const status = toMill ? 'MILL_GREY' : 'GODOWN_GREY'
-  for (let i = 0; i < d.takas.length; i += 100) {
-    const chunk = d.takas.slice(i, i + 100)
-    const args = chunk.flatMap((t) => [lastId, String(t.taka_no), r2(t.meter), status, toMill ? null : d.location_id || null, toMill ? d.mill_id : null])
-    await run(`INSERT INTO takas (receipt_id,taka_no,grey_meter,status,location_id,mill_id) VALUES ${chunk.map(() => '(?,?,?,?,?,?)').join(',')}`, args)
-  }
-  return lastId
+  if (!toMill && d.destination !== 'GODOWN') bad('Destination must be our godown or a mill')
+  const challan = String(d.challan_no || '').trim()
+  if (!challan) bad('Challan number is required')
+  if (!d.date) bad('Receipt date is required')
+  // validate rows (no DB needed)
+  const seen = new Set()
+  const rows = d.takas.map((t, i) => {
+    const no = String(t.taka_no ?? '').trim()
+    if (!no) bad(`Row ${i + 1}: taka number is required`)
+    if (seen.has(no.toLowerCase())) bad(`Duplicate taka number ${no} in this challan`)
+    seen.add(no.toLowerCase())
+    return { taka_no: no, meter: meters2(t.meter, `Taka ${no}`) }
+  })
+  return tx(async (q) => {
+    const po = await q.one('SELECT id, closed FROM grey_pos WHERE id=?', [d.po_id])
+    if (!po) bad('Choose a purchase order')
+    if (po.closed) bad('This PO is closed (short). Re-open it to receive more.')
+    const w = await q.one(`SELECT w.id, g.id AS group_id FROM weavers w JOIN weaver_groups g ON g.id=w.group_id JOIN grey_pos p ON p.group_id=g.id WHERE w.id=? AND p.id=?`, [d.weaver_id, d.po_id])
+    if (!w) bad("The party must belong to the PO's party group")
+    if (toMill && !(await q.one('SELECT id FROM mills WHERE id=?', [d.mill_id]))) bad('Choose the mill this challan was delivered to')
+    const locId = !toMill && d.location_id ? Number(d.location_id) : null
+    if (locId && !(await q.one('SELECT id FROM locations WHERE id=?', [locId]))) bad('That rack does not exist')
+    const { lastId } = await q.run(
+      `INSERT INTO grey_receipts (po_id,weaver_id,challan_no,date,destination,mill_id,image_url,notes) VALUES (?,?,?,?,?,?,?,?)`,
+      [d.po_id, d.weaver_id, challan, d.date, d.destination, toMill ? d.mill_id : null, d.image_url || null, d.notes || null],
+    )
+    const status = toMill ? 'MILL_GREY' : 'GODOWN_GREY'
+    const first = await q.one('SELECT COALESCE(MAX(id),0) AS m FROM takas')
+    for (const part of chunks(rows, 100)) {
+      await q.run(
+        `INSERT INTO takas (receipt_id,taka_no,grey_meter,status,location_id,mill_id) VALUES ${part.map(() => '(?,?,?,?,?,?)').join(',')}`,
+        part.flatMap((t) => [lastId, t.taka_no, t.meter, status, locId, toMill ? d.mill_id : null]),
+      )
+    }
+    const created = await q.all('SELECT id FROM takas WHERE receipt_id=? AND id>? ORDER BY id', [lastId, first.m])
+    await insertMoves(q, created.map((t) => ({ taka_id: t.id, from_status: null, to_status: status, to_location_id: locId, mill_id: toMill ? d.mill_id : null, ref_type: 'RECEIPT', ref_id: lastId, note: toMill ? 'RECEIVED DIRECT AT MILL' : 'RECEIVED' })))
+    return lastId
+  })
 }
 
-// ---------------------------------------------------------------- mill dispatch
+// ---------------------------------------------------------------- mill dispatch (our mill challan)
 const DS_SQL = `SELECT d.*, m.name AS mill_name,
   (SELECT COUNT(*) FROM takas t WHERE t.dispatch_id=d.id) AS taka_count,
-  (SELECT COALESCE(SUM(grey_meter),0) FROM takas t WHERE t.dispatch_id=d.id) AS total_m,
+  (SELECT ROUND(COALESCE(SUM(grey_meter),0),2) FROM takas t WHERE t.dispatch_id=d.id) AS total_m,
   (SELECT GROUP_CONCAT(DISTINCT q.nick_name) FROM takas t JOIN grey_receipts r ON r.id=t.receipt_id JOIN grey_pos p ON p.id=r.po_id JOIN qualities q ON q.id=p.quality_id WHERE t.dispatch_id=d.id) AS qualities
   FROM mill_dispatches d JOIN mills m ON m.id=d.mill_id`
 export const listDispatches = () => all(`${DS_SQL} ORDER BY d.id DESC`)
@@ -213,23 +389,47 @@ export async function getDispatch(id) {
   if (!d) return null
   return { ...d, takas: await listTakas('WHERE t.dispatch_id=?', [id]) }
 }
+/** Picking list for a sent challan: where each taka was taken from (rack at the time of sending). */
+export async function getPickList(dispatchId) {
+  const [takas, moves, locs] = await Promise.all([
+    listTakas('WHERE t.dispatch_id=?', [dispatchId]),
+    all(`SELECT taka_id, from_location_id FROM taka_moves WHERE ref_type='DISPATCH' AND ref_id=?`, [dispatchId]),
+    listLocations(),
+  ])
+  const from = new Map(moves.map((m) => [m.taka_id, m.from_location_id]))
+  const locById = new Map(locs.map((l) => [l.id, l]))
+  return groupPickList(takas, (t) => {
+    const id = from.has(t.id) ? from.get(t.id) : t.location_id
+    const l = locById.get(id)
+    return { id: id ?? null, shop: l?.shop, rack: l?.rack }
+  })
+}
 export async function createDispatch({ mill_id, date, notes, taka_ids }) {
-  if (!taka_ids.length) throw new Error('Select takas to send')
-  const no = await nextNo('mill_dispatches', 'DC')
-  const { lastId } = await run('INSERT INTO mill_dispatches (dispatch_no,date,mill_id,notes) VALUES (?,?,?,?)', [no, date, mill_id, notes || null])
-  await run(`UPDATE takas SET status='MILL_GREY', mill_id=?, dispatch_id=? WHERE id IN (${qs(taka_ids)}) AND status='GODOWN_GREY'`, [mill_id, lastId, ...taka_ids])
-  return lastId
+  if (!taka_ids?.length) bad('Select takas to send')
+  if (!mill_id) bad('Choose a mill')
+  if (!date) bad('Date is required')
+  return tx(async (q) => {
+    if (!(await q.one('SELECT id FROM mills WHERE id=?', [mill_id]))) bad('Mill not found')
+    const rows = await requireTakas(q, taka_ids, 'GODOWN_GREY', 'send to mill')
+    const no = await nextNo('mill_dispatches', 'DC', q)
+    const { lastId } = await q.run('INSERT INTO mill_dispatches (dispatch_no,date,mill_id,notes) VALUES (?,?,?,?)', [no, date, mill_id, notes || null])
+    await updateTakas(q, rows.map((t) => t.id), `status='MILL_GREY', mill_id=?, dispatch_id=?, location_id=NULL`, [mill_id, lastId], 'GODOWN_GREY')
+    await insertMoves(q, rows.map((t) => ({ taka_id: t.id, from_status: 'GODOWN_GREY', to_status: 'MILL_GREY', from_location_id: t.location_id, mill_id, ref_type: 'DISPATCH', ref_id: lastId, note: 'SENT TO MILL' })))
+    return lastId
+  })
 }
 
 // ---------------------------------------------------------------- dyeing programs
 const PG_SQL = `SELECT pr.*, m.name AS mill_name, q.nick_name, q.original_name, c.name AS chart_name,
   (SELECT COALESCE(SUM(taka_count),0) FROM program_lines WHERE program_id=pr.id) AS total_takas,
   (SELECT COUNT(*) FROM takas t JOIN program_lines pl ON pl.id=t.program_line_id WHERE pl.program_id=pr.id AND t.finished_receipt_id IS NOT NULL) AS received_takas,
-  (SELECT COALESCE(SUM(t.grey_meter),0) FROM takas t JOIN program_lines pl ON pl.id=t.program_line_id WHERE pl.program_id=pr.id) AS grey_m
+  (SELECT ROUND(COALESCE(SUM(t.grey_meter),0),2) FROM takas t JOIN program_lines pl ON pl.id=t.program_line_id WHERE pl.program_id=pr.id) AS grey_m
   FROM programs pr JOIN mills m ON m.id=pr.mill_id JOIN qualities q ON q.id=pr.quality_id JOIN shade_charts c ON c.id=pr.chart_id`
 const LINES_SQL = `SELECT pl.*, s.number AS shade_no, s.name AS shade_name, s.hex,
   (SELECT COUNT(*) FROM takas t WHERE t.program_line_id=pl.id) AS allocated,
-  (SELECT COUNT(*) FROM takas t WHERE t.program_line_id=pl.id AND t.finished_receipt_id IS NOT NULL) AS received
+  (SELECT COUNT(*) FROM takas t WHERE t.program_line_id=pl.id AND t.finished_receipt_id IS NOT NULL) AS received,
+  (SELECT ROUND(COALESCE(SUM(t.grey_meter),0),2) FROM takas t WHERE t.program_line_id=pl.id) AS grey_m,
+  (SELECT ROUND(COALESCE(SUM(t.finished_meter),0),2) FROM takas t WHERE t.program_line_id=pl.id AND t.finished_receipt_id IS NOT NULL) AS finished_m
   FROM program_lines pl JOIN shades s ON s.id=pl.shade_id`
 const progStatus = (p) => (Number(p.received_takas) === 0 ? 'PENDING' : Number(p.received_takas) >= Number(p.total_takas) ? 'DONE' : 'PARTIAL')
 
@@ -247,49 +447,90 @@ export async function getProgram(id) {
   ])
   return { ...p, status: progStatus(p), lines, takas, receipts }
 }
-export const millGreyTakas = (millId, qualityId) =>
-  listTakas(`WHERE t.status='MILL_GREY' AND t.mill_id=? AND p.quality_id=?`, [millId, qualityId])
+const MILL_GREY_WHERE = `WHERE t.status='MILL_GREY' AND t.mill_id=? AND p.quality_id=?`
+export const millGreyTakas = (millId, qualityId, q = base) => listTakas(MILL_GREY_WHERE, [millId, qualityId], q)
 
-/** Auto-allocates takas FIFO from mill grey stock to each shade line. */
-export async function createProgram({ mill_id, quality_id, chart_id, date, notes, lines }) {
-  const valid = lines.filter((l) => l.shade_id && Number(l.taka_count) > 0)
-  if (!valid.length) throw new Error('Add at least one shade line')
-  const avail = await millGreyTakas(mill_id, quality_id)
-  const need = valid.reduce((s, l) => s + Number(l.taka_count), 0)
-  if (need > avail.length) throw new Error(`Only ${avail.length} grey takas available at this mill`)
-  const no = await nextNo('programs', 'PG')
-  const { lastId } = await run('INSERT INTO programs (program_no,date,mill_id,quality_id,chart_id,notes) VALUES (?,?,?,?,?,?)', [no, date, mill_id, quality_id, chart_id, notes || null])
-  let cursor = 0
+/** Takas of a program are taken first-in-first-out from "grey at that mill" of the chosen quality. */
+export async function createProgram({ mill_id, quality_id, chart_id, date, notes, lines, total_takas }) {
+  if (!mill_id || !quality_id || !chart_id) bad('Choose mill, quality and shade chart')
+  if (!date) bad('Date is required')
+  const valid = (lines || []).filter((l) => l.shade_id && Number(l.taka_count) > 0)
+  if (!valid.length) bad('Add at least one shade line')
+  const seen = new Set()
   for (const l of valid) {
-    const { lastId: lineId } = await run('INSERT INTO program_lines (program_id,shade_id,taka_count) VALUES (?,?,?)', [lastId, l.shade_id, Number(l.taka_count)])
-    const ids = avail.slice(cursor, cursor + Number(l.taka_count)).map((t) => t.id)
-    cursor += ids.length
-    await run(`UPDATE takas SET status='IN_DYEING', program_line_id=? WHERE id IN (${qs(ids)})`, [lineId, ...ids])
+    if (!Number.isInteger(Number(l.taka_count))) bad('Taka counts must be whole numbers')
+    if (seen.has(String(l.shade_id))) bad('Each shade can appear only once in a program')
+    seen.add(String(l.shade_id))
   }
-  return lastId
+  const need = valid.reduce((s, l) => s + Number(l.taka_count), 0)
+  if (total_takas != null && total_takas !== '' && Number(total_takas) !== need) bad(`Shade split adds up to ${need} takas but the program is for ${Number(total_takas)}`)
+  return tx(async (q) => {
+    const avail = await millGreyTakas(mill_id, quality_id, q)
+    if (need > avail.length) bad(`Only ${avail.length} grey takas of this quality are available at this mill (you asked for ${need})`)
+    const okShades = await q.all(`SELECT id FROM shades WHERE chart_id=? AND id IN (${qs(valid)})`, [chart_id, ...valid.map((l) => l.shade_id)])
+    if (okShades.length !== valid.length) bad('Every shade must belong to the chosen shade chart')
+    const no = await nextNo('programs', 'PG', q)
+    const { lastId } = await q.run('INSERT INTO programs (program_no,date,mill_id,quality_id,chart_id,notes) VALUES (?,?,?,?,?,?)', [no, date, mill_id, quality_id, chart_id, notes || null])
+    let cursor = 0
+    for (const l of valid) {
+      const { lastId: lineId } = await q.run('INSERT INTO program_lines (program_id,shade_id,taka_count) VALUES (?,?,?)', [lastId, l.shade_id, Number(l.taka_count)])
+      const picked = avail.slice(cursor, cursor + Number(l.taka_count))
+      cursor += picked.length
+      await updateTakas(q, picked.map((t) => t.id), `status='IN_DYEING', program_line_id=?`, [lineId], 'MILL_GREY')
+      await insertMoves(q, picked.map((t) => ({ taka_id: t.id, from_status: 'MILL_GREY', to_status: 'IN_DYEING', mill_id, ref_type: 'PROGRAM', ref_id: lastId, note: 'PROGRAM' })))
+    }
+    return lastId
+  })
 }
 
-// ---------------------------------------------------------------- finished receipts
+// ---------------------------------------------------------------- finished receipts (mill challan back to us)
 const FR_SQL = `SELECT fr.*, pr.program_no, pr.mill_id, m.name AS mill_name, q.nick_name,
   (SELECT COUNT(*) FROM takas t WHERE t.finished_receipt_id=fr.id) AS taka_count,
-  (SELECT COALESCE(SUM(COALESCE(mill_grey_meter, grey_meter)),0) FROM takas t WHERE t.finished_receipt_id=fr.id) AS grey_m,
-  (SELECT COALESCE(SUM(finished_meter),0) FROM takas t WHERE t.finished_receipt_id=fr.id) AS finished_m
+  (SELECT ROUND(COALESCE(SUM(COALESCE(mill_grey_meter, grey_meter)),0),2) FROM takas t WHERE t.finished_receipt_id=fr.id) AS grey_m,
+  (SELECT ROUND(COALESCE(SUM(finished_meter),0),2) FROM takas t WHERE t.finished_receipt_id=fr.id) AS finished_m
   FROM finished_receipts fr JOIN programs pr ON pr.id=fr.program_id JOIN mills m ON m.id=pr.mill_id JOIN qualities q ON q.id=pr.quality_id`
 export const listFinishedReceipts = (where = '', args = []) => all(`${FR_SQL} ${where} ORDER BY fr.id DESC`, args)
 
-/** rows: [{id, mill_grey_meter, finished_meter}] */
+/** rows: [{id, mill_grey_meter, finished_meter}] — partial returns allowed; each taka can be received once. */
 export async function createFinishedReceipt({ program_id, challan_no, date, image_url, notes, rows }) {
-  if (!rows.length) throw new Error('Select received takas')
-  const { lastId } = await run('INSERT INTO finished_receipts (program_id,challan_no,date,image_url,notes) VALUES (?,?,?,?,?)', [program_id, challan_no, date, image_url || null, notes || null])
-  for (const r of rows) {
-    await run(`UPDATE takas SET status='FINISHED', finished_receipt_id=?, mill_grey_meter=?, finished_meter=? WHERE id=?`, [lastId, r2(r.mill_grey_meter), r2(r.finished_meter), r.id])
-  }
-  return lastId
+  if (!rows?.length) bad('Select received takas')
+  if (!String(challan_no || '').trim()) bad('Mill challan number is required')
+  if (!date) bad('Date is required')
+  const clean = rows.map((r) => ({
+    id: Number(r.id),
+    grey: meters2(r.mill_grey_meter, 'Mill grey meter'),
+    fin: meters2(r.finished_meter, 'Finished meter'),
+  }))
+  return tx(async (q) => {
+    const prog = await q.one('SELECT id FROM programs WHERE id=?', [program_id])
+    if (!prog) bad('Program not found')
+    const found = await requireTakas(q, clean.map((r) => r.id), 'IN_DYEING', 'receive')
+    const lines = await q.all('SELECT id FROM program_lines WHERE program_id=?', [program_id])
+    const lineIds = new Set(lines.map((l) => l.id))
+    if (found.some((t) => !lineIds.has(t.program_line_id))) bad('Some takas do not belong to this program')
+    const { lastId } = await q.run('INSERT INTO finished_receipts (program_id,challan_no,date,image_url,notes) VALUES (?,?,?,?,?)', [program_id, String(challan_no).trim(), date, image_url || null, notes || null])
+    for (const r of clean) {
+      const res = await q.run(`UPDATE takas SET status='FINISHED', finished_receipt_id=?, mill_grey_meter=?, finished_meter=? WHERE id=? AND status='IN_DYEING'`, [lastId, r.grey, r.fin, r.id])
+      if (res.changes !== 1) bad('A taka changed while saving — nothing was saved')
+    }
+    await insertMoves(q, clean.map((r) => ({ taka_id: r.id, from_status: 'IN_DYEING', to_status: 'FINISHED', ref_type: 'MILL_RECEIPT', ref_id: lastId, note: 'FINISHED RECEIVED' })))
+    return lastId
+  })
 }
 
 // ---------------------------------------------------------------- folding
 export async function foldTakas(rows, date = today()) {
-  for (const r of rows) await run(`UPDATE takas SET status='FOLDED', folded_meter=?, folded_on=? WHERE id=? AND status='FINISHED'`, [r2(r.folded_meter), date, r.id])
+  if (!rows?.length) bad('Select takas to fold')
+  const clean = rows.map((r) => ({ id: Number(r.id), m: meters2(r.folded_meter, 'Folded meter') }))
+  return tx(async (q) => {
+    await requireTakas(q, clean.map((r) => r.id), 'FINISHED', 'fold')
+    for (const r of clean) {
+      const res = await q.run(`UPDATE takas SET status='FOLDED', folded_meter=?, folded_on=? WHERE id=? AND status='FINISHED'`, [r.m, date, r.id])
+      if (res.changes !== 1) bad('A taka changed while saving — nothing was saved')
+    }
+    await insertMoves(q, clean.map((r) => ({ taka_id: r.id, from_status: 'FINISHED', to_status: 'FOLDED', ref_type: 'FOLDING', note: 'FOLDED' })))
+    return clean.length
+  })
 }
 
 // ---------------------------------------------------------------- customer orders
@@ -311,38 +552,130 @@ export async function getOrder(id) {
   return { ...o, lines, takas }
 }
 export async function createOrder({ order_no, date, customer_id, quality_id, notes, lines }) {
-  const valid = lines.filter((l) => l.shade_id && Number(l.taka_count) > 0)
-  if (!valid.length) throw new Error('Add at least one shade line')
-  const { lastId } = await run('INSERT INTO orders (order_no,date,customer_id,quality_id,notes) VALUES (?,?,?,?,?)', [order_no, date, customer_id, quality_id, notes || null])
-  for (const l of valid) await run('INSERT INTO order_lines (order_id,shade_id,taka_count) VALUES (?,?,?)', [lastId, l.shade_id, Number(l.taka_count)])
-  return lastId
+  const no = String(order_no || '').trim()
+  if (!no) bad('Order number is required')
+  if (!customer_id || !quality_id) bad('Choose customer and quality')
+  const valid = (lines || []).filter((l) => l.shade_id && Number(l.taka_count) > 0)
+  if (!valid.length) bad('Add at least one shade line')
+  if (new Set(valid.map((l) => String(l.shade_id))).size !== valid.length) bad('Each shade can appear only once in an order')
+  return tx(async (q) => {
+    if (await q.one('SELECT id FROM orders WHERE LOWER(order_no)=?', [no.toLowerCase()])) bad(`Order number ${no} already exists`)
+    const { lastId } = await q.run('INSERT INTO orders (order_no,date,customer_id,quality_id,notes) VALUES (?,?,?,?,?)', [no, date || today(), customer_id, quality_id, notes || null])
+    for (const l of valid) await q.run('INSERT INTO order_lines (order_id,shade_id,taka_count) VALUES (?,?,?)', [lastId, l.shade_id, Number(l.taka_count)])
+    return lastId
+  })
 }
-/** Allocates READY (folded) takas FIFO to each line → SOLD. */
+/**
+ * Allocates READY (folded) takas FIFO to each line → SOLD.
+ * NOTE: this booking rule came from the generated app; the brief asks to treat booking/reservation as an
+ * open question (docs/SPEC.md Q6). Availability checking (below) does not depend on it.
+ */
 export async function allocateOrder(id) {
-  const o = await getOrder(id)
-  let allocated = 0, short = 0
-  for (const l of o.lines) {
-    const need = l.taka_count - l.allocated
-    if (need <= 0) continue
-    const ready = await listTakas(`WHERE t.status='FOLDED' AND p.quality_id=? AND pl.shade_id=?`, [o.quality_id, l.shade_id])
-    const ids = ready.slice(0, need).map((t) => t.id)
-    if (ids.length) await run(`UPDATE takas SET status='SOLD', order_id=? WHERE id IN (${qs(ids)})`, [id, ...ids])
-    allocated += ids.length
-    short += need - ids.length
-  }
-  if (short === 0) await run(`UPDATE orders SET status='DONE' WHERE id=?`, [id])
-  return { allocated, short }
+  return tx(async (q) => {
+    const o = await q.one('SELECT * FROM orders WHERE id=?', [id])
+    if (!o) bad('Order not found')
+    const lines = await q.all(`${OL_SQL} WHERE ol.order_id=? ORDER BY ol.id`, [id])
+    let allocated = 0, short = 0
+    for (const l of lines) {
+      const need = l.taka_count - l.allocated
+      if (need <= 0) continue
+      const ready = await listTakas(`WHERE t.status='FOLDED' AND p.quality_id=? AND pl.shade_id=?`, [o.quality_id, l.shade_id], q)
+      const ids = ready.slice(0, need).map((t) => t.id)
+      if (ids.length) {
+        await updateTakas(q, ids, `status='SOLD', order_id=?`, [id], 'FOLDED')
+        await insertMoves(q, ids.map((taka_id) => ({ taka_id, from_status: 'FOLDED', to_status: 'SOLD', ref_type: 'ORDER', ref_id: id, note: 'ALLOCATED TO ORDER' })))
+      }
+      allocated += ids.length
+      short += need - ids.length
+    }
+    if (short === 0) await q.run(`UPDATE orders SET status='DONE' WHERE id=?`, [id])
+    return { allocated, short }
+  })
 }
 
 export async function closeOrder(id) {
   return await run(`UPDATE orders SET status='DONE' WHERE id=?`, [id])
 }
 
-/** Stock position for one quality: grey (shade-free) + per-shade dyeing / finished / ready. */
+// ---------------------------------------------------------------- stock views (audit §2.10)
+const acc = () => ({ takas: 0, m: 0 })
+const add = (a, m) => { a.takas += 1; a.m = r2(a.m + Number(m || 0)) }
+
+export const INVENTORY_VIEWS = {
+  godown: { label: 'Grey at our place', statuses: ['GODOWN_GREY'], meter: (t) => t.grey_meter },
+  mill: { label: 'Grey at mill', statuses: ['MILL_GREY'], meter: (t) => t.grey_meter },
+  dyeing: { label: 'In dyeing', statuses: ['IN_DYEING'], meter: (t) => t.mill_grey_meter ?? t.grey_meter },
+  finished: { label: 'Finished goods', statuses: ['FINISHED', 'FOLDED'], meter: (t) => t.folded_meter ?? t.finished_meter },
+}
+
+/** Counts/meters for the four views + reconciliation against all active (not SOLD) takas. */
+export async function inventoryCounts() {
+  const rows = await all(`SELECT status, COUNT(*) AS c, ROUND(COALESCE(SUM(CASE status
+      WHEN 'FOLDED' THEN folded_meter WHEN 'FINISHED' THEN finished_meter WHEN 'IN_DYEING' THEN COALESCE(mill_grey_meter, grey_meter) ELSE grey_meter END),0),2) AS m
+    FROM takas GROUP BY status`)
+  const by = Object.fromEntries(rows.map((r) => [r.status, { takas: Number(r.c), m: r2(r.m) }]))
+  const views = {}
+  const known = new Set(['SOLD'])
+  for (const [k, v] of Object.entries(INVENTORY_VIEWS)) {
+    views[k] = v.statuses.reduce((a, s) => { known.add(s); return { takas: a.takas + (by[s]?.takas || 0), m: r2(a.m + (by[s]?.m || 0)) } }, { takas: 0, m: 0 })
+  }
+  const active = rows.filter((r) => r.status !== 'SOLD').reduce((s, r) => s + Number(r.c), 0)
+  const other = rows.filter((r) => !known.has(r.status)).reduce((s, r) => s + Number(r.c), 0)
+  const sum = Object.values(views).reduce((s, v) => s + v.takas, 0)
+  return { views, active, sold: by.SOLD?.takas || 0, other, sum, reconciled: sum === active && other === 0 }
+}
+
+/** Takas of one view. filters: quality_id, group_id, weaver_id, mill_id, shade_id, location_id */
+export async function inventoryList(view, f = {}) {
+  const v = INVENTORY_VIEWS[view]
+  if (!v) bad('Unknown stock view')
+  const where = [`t.status IN (${qs(v.statuses)})`], args = [...v.statuses]
+  const add1 = (cond, val) => { if (val !== undefined && val !== null && val !== '') { where.push(cond); args.push(val) } }
+  add1('p.quality_id=?', f.quality_id); add1('g.id=?', f.group_id); add1('r.weaver_id=?', f.weaver_id)
+  add1('t.mill_id=?', f.mill_id); add1('pl.shade_id=?', f.shade_id); add1('t.location_id=?', f.location_id)
+  const takas = await listTakas(`WHERE ${where.join(' AND ')}`, args)
+  return takas.map((t) => ({ ...t, stock_m: Number(v.meter(t) ?? 0) }))
+}
+
+/**
+ * Availability for a customer order (R-SO-1): for one quality (by nickname) and each requested shade.
+ * Grey stock has no shade yet, so it is reported once for the quality.
+ */
+export async function availabilityDetail(qualityId, shadeIds = []) {
+  const [takas, shades] = await Promise.all([
+    listTakas(`WHERE p.quality_id=? AND t.status!='SOLD'`, [qualityId]),
+    all(`SELECT s.*, c.name AS chart_name FROM shades s JOIN shade_charts c ON c.id=s.chart_id ${shadeIds.length ? `WHERE s.id IN (${qs(shadeIds)})` : 'WHERE 0'}`, shadeIds),
+  ])
+  const group = (arr, keyOf, labelOf) => {
+    const m = new Map()
+    for (const [t, mt] of arr) { const k = keyOf(t); if (!m.has(k)) m.set(k, { label: labelOf(t), ...acc() }); add(m.get(k), mt) }
+    return [...m.values()]
+  }
+  const mill = takas.filter((t) => t.status === 'MILL_GREY')
+  const place = takas.filter((t) => t.status === 'GODOWN_GREY')
+  const out = {
+    greyAtMill: { ...acc(), byMill: group(mill.map((t) => [t, t.grey_meter]), (t) => t.mill_id, (t) => t.mill_name || '—') },
+    greyAtPlace: { ...acc(), byLocation: group(place.map((t) => [t, t.grey_meter]), (t) => t.location_id ?? 'none', (t) => locLabel(t.shop, t.rack)) },
+    shades: [],
+  }
+  mill.forEach((t) => add(out.greyAtMill, t.grey_meter))
+  place.forEach((t) => add(out.greyAtPlace, t.grey_meter))
+  for (const sd of shades) {
+    const mine = takas.filter((t) => t.shade_id === sd.id)
+    const fin = mine.filter((t) => t.status === 'FINISHED' || t.status === 'FOLDED')
+    const dye = mine.filter((t) => t.status === 'IN_DYEING')
+    const s = { shade_id: sd.id, shade_no: sd.number, shade_name: sd.name, hex: sd.hex, chart_name: sd.chart_name, finished: acc(), folded: acc(), unfolded: acc(), dyeing: acc(), programs: [] }
+    fin.forEach((t) => { const m = t.folded_meter ?? t.finished_meter; add(s.finished, m); add(t.status === 'FOLDED' ? s.folded : s.unfolded, m) })
+    dye.forEach((t) => add(s.dyeing, t.mill_grey_meter ?? t.grey_meter))
+    s.programs = group(dye.map((t) => [t, t.grey_meter]), (t) => t.program_id, (t) => `${t.program_no} · ${t.program_mill_name}`)
+    out.shades.push(s)
+  }
+  return out
+}
+
+/** Older, compact stock position kept for compatibility. */
 export async function availability(qualityId) {
   const takas = await listTakas(`WHERE p.quality_id=? AND t.status!='SOLD'`, [qualityId])
-  const acc = () => ({ takas: 0, m: 0 })
-  const add = (a, m) => { a.takas += 1; a.m = r2(a.m + Number(m || 0)) }
   const res = { godownGrey: acc(), millGrey: acc(), dyeing: acc(), finished: acc(), ready: acc(), byShade: {} }
   for (const t of takas) {
     if (t.status === 'GODOWN_GREY') add(res.godownGrey, t.grey_meter)
@@ -357,6 +690,44 @@ export async function availability(qualityId) {
   return res
 }
 
+// ---------------------------------------------------------------- shrinkage report (R-SH-1..3)
+function summarize(rows, keyOf, labelOf, extra = () => ({})) {
+  const m = new Map()
+  for (const t of rows) {
+    const k = keyOf(t)
+    if (!m.has(k)) m.set(k, { key: k, label: labelOf(t), takas: 0, start: 0, finished: 0, folded: 0, foldedTakas: 0, finishLoss: 0, foldLoss: 0, totalLoss: 0, ...extra(t) })
+    const g = m.get(k)
+    g.takas += 1
+    g.start += t.start
+    g.finished += t.finished_meter != null ? Number(t.finished_meter) : 0
+    g.finishLoss += t.finishLoss ?? 0
+    g.totalLoss += t.totalLoss ?? 0
+    if (t.folded_meter != null) { g.folded += Number(t.folded_meter); g.foldedTakas += 1; g.foldLoss += t.foldLoss ?? 0 }
+  }
+  return [...m.values()].map((g) => ({
+    ...g,
+    start: r2(g.start), finished: r2(g.finished), folded: r2(g.folded), finishLoss: r2(g.finishLoss), foldLoss: r2(g.foldLoss), totalLoss: r2(g.totalLoss),
+    finishPct: g.start ? r2((g.finishLoss / g.start) * 100) : null,
+    totalPct: g.start ? r2((g.totalLoss / g.start) * 100) : null,
+  }))
+}
+
+/** Per-taka chains for every taka that came back from the mill, plus summaries by PO/party/quality/mill/program. */
+export async function shrinkageReport() {
+  const [takas, pos] = await Promise.all([listTakas('WHERE t.finished_meter IS NOT NULL'), listPOs()])
+  const poById = new Map(pos.map((p) => [p.id, p]))
+  const byPo = summarize(takas, (t) => t.po_id, (t) => t.po_no).map((g) => ({ ...g, po: poById.get(g.key) }))
+  for (const p of pos) if (!byPo.some((g) => g.key === p.id) && p.received_m > 0) byPo.push({ key: p.id, label: p.po_no, takas: 0, start: 0, finished: 0, folded: 0, finishLoss: 0, foldLoss: 0, totalLoss: 0, finishPct: null, totalPct: null, po: p })
+  return {
+    rows: takas,
+    byPo,
+    byParty: summarize(takas, (t) => t.weaver_id, (t) => `${t.weaver_name} (${t.group_name})`),
+    byQuality: summarize(takas, (t) => t.quality_id, (t) => t.nick_name),
+    byMill: summarize(takas, (t) => t.program_mill_id, (t) => t.program_mill_name || t.mill_name || '—'),
+    byProgram: summarize(takas, (t) => t.program_id, (t) => t.program_no),
+  }
+}
+
 // ---------------------------------------------------------------- dashboard
 export async function dashboard() {
   const [byStatus, pos, folded, receipts, dispatches, programs, finished, orders] = await Promise.all([
@@ -367,7 +738,7 @@ export async function dashboard() {
   ])
   const status = Object.fromEntries(PIPELINE.map((s) => [s, { c: 0, m: 0 }]))
   byStatus.forEach((r) => { status[r.status] = { c: Number(r.c), m: r2(r.m) } })
-  const openPos = pos.filter((p) => p.status !== 'COMPLETED')
+  const openPos = pos.filter((p) => p.status === 'OPEN' || p.status === 'PARTIAL')
   const avg = (arr) => (arr.length ? r2(arr.reduce((s, v) => s + v, 0) / arr.length) : 0)
   const activity = [
     ...receipts.slice(0, 5).map((r) => ({ kind: 'receipt', date: r.date, title: `Grey challan ${r.challan_no}`, sub: `${r.weaver_name} · ${r.taka_count} taka · ${r.nick_name}`, to: `/receipts/${r.id}` })),
@@ -393,15 +764,18 @@ export async function dashboard() {
 }
 
 // ---------------------------------------------------------------- setup
+/** Demo data is written ONLY into a completely empty local database (never a remote one unless explicitly allowed). */
 export async function ensureSeed() {
-  const r = await one('SELECT COUNT(*) AS c FROM qualities')
-  if (Number(r.c) === 0) {
-    const { seed } = await import('./seed')
-    await seed()
+  if (mode !== 'local' && import.meta.env?.VITE_ALLOW_DEMO_SEED !== 'true') return
+  for (const t of ['qualities', 'weaver_groups', 'mills', 'customers', 'locations', 'shade_charts', 'grey_pos', 'grey_receipts', 'takas', 'orders']) {
+    const r = await one(`SELECT COUNT(*) AS c FROM ${t}`)
+    if (Number(r.c) > 0) return
   }
+  const { seed } = await import('./seed')
+  await seed()
 }
 export async function resetDemo() {
-  await dropAll()
+  await dropAll() // throws in remote mode
   const { seed } = await import('./seed')
   await seed()
 }

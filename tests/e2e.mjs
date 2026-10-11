@@ -130,7 +130,7 @@ try {
     const inv = await repo.inventoryCounts()
     eq('inventory reconciles', inv.reconciled, true)
     eq('grey at our place', inv.views.godown.takas, 12)
-    eq('in dyeing', inv.views.dyeing.takas, 48 + 1 - 31)
+    eq('in dyeing', inv.views.dyeing.takas, 48 - 31)
     eq('finished goods', inv.views.finished.takas, 31)
   } else check('inventory views', false, 'no inventoryCounts')
   eq('no taka lost', (await repo.listTakas()).length, 68)
