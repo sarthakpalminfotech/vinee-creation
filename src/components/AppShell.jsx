@@ -7,17 +7,17 @@ import { mode, exportBackup } from '../db/client';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: Home },
-  { path: '/masters/weavers', label: 'Masters', icon: Database },
+  { path: '/orders', label: 'Orders', icon: ShoppingCart },
   { path: '/po', label: 'Grey PO', icon: Store },
   { path: '/receipts', label: 'Grey Challan', icon: CheckCircle },
-  { path: '/programs', label: 'Dyeing', icon: Palette },
   { path: '/dispatch', label: 'Mill Dispatch', icon: Truck },
+  { path: '/programs', label: 'Dyeing', icon: Palette },
   { path: '/folding', label: 'Folding', icon: Scissors },
-  { path: '/assignment', label: 'Rack/Godown', icon: MapPin },
   { path: '/inventory', label: 'Inventory', icon: Boxes },
+  { path: '/assignment', label: 'Rack/Godown', icon: MapPin },
   { path: '/availability', label: 'Availability', icon: SearchCheck },
-  { path: '/orders', label: 'Orders', icon: ShoppingCart },
   { path: '/reports/shrinkage', label: 'Shrinkage Report', icon: TrendingDown },
+  { path: '/masters/weavers', label: 'Masters', icon: Database },
 ];
 
 export function AppShell() {

@@ -135,22 +135,22 @@ export function Empty({ icon: Icon = AlertCircle, title, description, action }) 
   );
 }
 
-export function Table({ children, className = '' }) {
+export function Table({ children, className = '', ...props }) {
   return (
     <div className="w-full overflow-x-auto">
-      <table className={`w-full text-left text-sm whitespace-nowrap ${className}`}>
+      <table className={`w-full text-left text-sm whitespace-nowrap ${className}`} {...props}>
         {children}
       </table>
     </div>
   );
 }
 
-export function Th({ children, className = '' }) {
-  return <th className={`px-4 py-3 font-medium text-slate-500 border-b border-slate-200 ${className}`}>{children}</th>;
+export function Th({ children, className = '', ...props }) {
+  return <th className={`px-4 py-3 font-medium text-slate-500 border-b border-slate-200 ${className}`} {...props}>{children}</th>;
 }
 
-export function Td({ children, className = '' }) {
-  return <td className={`px-4 py-3 border-b border-slate-100 text-slate-700 ${className}`}>{children}</td>;
+export function Td({ children, className = '', ...props }) {
+  return <td className={`px-4 py-3 border-b border-slate-100 text-slate-700 ${className}`} {...props}>{children}</td>;
 }
 
 /** Inline message (replaces alert()). tone: error | success | info */

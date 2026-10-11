@@ -307,7 +307,14 @@ export default function CreateReceiptPage() {
                         onChange={onChange} onEnter={onEnter} onRemove={onRemove} onPaste={onPaste} />
                     ))}
                     {rows.length === 0 && (
-                      <tr><Td colSpan={5} className="text-center py-8 text-slate-500">No takas yet. Use "Add rows" or paste from Excel.</Td></tr>
+                      <tr>
+                        <Td colSpan={5} className="text-center py-8 text-slate-500">
+                          <div className="flex flex-col items-center justify-center gap-1 py-2">
+                            <span className="text-sm font-medium text-slate-600">No takas added yet</span>
+                            <span className="text-xs text-slate-400">Use "Add rows" above or paste from Excel.</span>
+                          </div>
+                        </Td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
