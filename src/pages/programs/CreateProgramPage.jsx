@@ -1,0 +1,268 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { PageHeader, Card, Button, Input, Select, Field, Empty, Drawer } from '../../components/ui';
+import { ArrowLeft, Save, Plus, Trash2, Scissors } from 'lucide-react';
+import * as repo from '../../db/repo';
+
+export default function CreateProgramPage() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [mills, setMills] = useState([]);
+  const [qualities, setQualities] = useState([]);
+  const [charts, setCharts] = useState([]);
+  const [shades, setShades] = useState([]);
+  
+  const [formData, setFormData] = useState({
+    mill_id: '',
+    quality_id: '',
+    chart_id: '',
+    date: new Date().toISOString().slice(0, 10),
+    notes: ''
+  });
+
+  const [availableTakas, setAvailableTakas] = useState([]);
+  const [lines, setLines] = useState([]);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [allMills, allQualities, allCharts, allShades] = await Promise.all([
+          repo.listMills(),
+          repo.listQualities(),
+          repo.listCharts(),
+          repo.listShades()
+        ]);
+        setMills(allMills);
+        setQualities(allQualities);
+        setCharts(allCharts);
+        setShades(allShades);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  // When mill or quality changes, check availability
+  useEffect(() => {
+    async function checkAvailability() {
+      if (formData.mill_id && formData.quality_id) {
+        const takas = await repo.millGreyTakas(formData.mill_id, formData.quality_id);
+        setAvailableTakas(takas);
+      } else {
+        setAvailableTakas([]);
+      }
+    }
+    checkAvailability();
+  }, [formData.mill_id, formData.quality_id]);
+
+  const availableShades = useMemo(() => {
+    if (!formData.chart_id) return [];
+    return shades.filter(s => s.chart_id.toString() === formData.chart_id);
+  }, [shades, formData.chart_id]);
+
+  const addLine = () => {
+    setLines([...lines, { id: Math.random().toString(36).substr(2, 9), shade_id: '', taka_count: '' }]);
+  };
+
+  const removeLine = (id) => {
+    setLines(lines.filter(l => l.id !== id));
+  };
+
+  const updateLine = (id, field, value) => {
+    setLines(lines.map(l => l.id === id ? { ...l, [field]: value } : l));
+  };
+
+  const totalTakas = lines.reduce((s, l) => s + (parseInt(l.taka_count) || 0), 0);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    try {
+      if (!formData.mill_id || !formData.quality_id || !formData.chart_id) {
+        throw new Error('Please select mill, quality, and shade chart');
+      }
+      const validLines = lines.filter(l => l.shade_id && parseInt(l.taka_count) > 0);
+      if (validLines.length === 0) {
+        throw new Error('Please add at least one valid shade line');
+      }
+      if (totalTakas > availableTakas.length) {
+        throw new Error(`Only ${availableTakas.length} takas available. You assigned ${totalTakas}.`);
+      }
+      
+      const id = await repo.createProgram({
+        ...formData,
+        lines: validLines
+      });
+      navigate(`/programs/${id}`);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
+
+  return (
+    <Drawer isOpen={true} onClose={() => navigate('/programs')}>
+      <div className="space-y-6 max-w-5xl mx-auto">
+        <PageHeader 
+          title="Issue Dyeing Program" 
+          description="Instruct a mill to dye grey fabric into specific shades."
+        >
+          <Button variant="ghost" onClick={() => navigate('/programs')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
+        </PageHeader>
+
+      <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Program Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="Mill *">
+                <Select required value={formData.mill_id} onChange={e => setFormData(p => ({ ...p, mill_id: e.target.value }))}>
+                  <option value="">Select Mill...</option>
+                  {mills.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Quality *">
+                <Select required value={formData.quality_id} onChange={e => setFormData(p => ({ ...p, quality_id: e.target.value }))}>
+                  <option value="">Select Quality...</option>
+                  {qualities.map(q => <option key={q.id} value={q.id}>{q.nick_name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Program Date *">
+                <Input type="date" required value={formData.date} onChange={e => setFormData(p => ({ ...p, date: e.target.value }))} />
+              </Field>
+              <Field label="Shade Chart *">
+                <Select required value={formData.chart_id} onChange={e => setFormData(p => ({ ...p, chart_id: e.target.value, lines: [] }))}>
+                  <option value="">Select Chart...</option>
+                  {charts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </Select>
+              </Field>
+              <div className="md:col-span-2">
+                <Field label="Notes (Optional)">
+                  <Input value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Special instructions for dyeing..." />
+                </Field>
+              </div>
+            </div>
+            
+            {(formData.mill_id && formData.quality_id) && (
+              <div className={`mt-6 p-4 rounded-xl border flex items-center justify-between ${
+                availableTakas.length > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    availableTakas.length > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
+                  }`}>
+                    <Scissors className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className={`font-semibold ${availableTakas.length > 0 ? 'text-emerald-900' : 'text-red-900'}`}>
+                      Available Grey Takas
+                    </h4>
+                    <p className={`text-sm ${availableTakas.length > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                      At {mills.find(m => m.id.toString() === formData.mill_id)?.name || 'this mill'}
+                    </p>
+                  </div>
+                </div>
+                <div className={`text-3xl font-bold ${availableTakas.length > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                  {availableTakas.length}
+                </div>
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">Shade Lines</h3>
+              <Button type="button" variant="outline" size="sm" onClick={addLine} disabled={!formData.chart_id}>
+                <Plus className="w-4 h-4 mr-2" /> Add Line
+              </Button>
+            </div>
+
+            {!formData.chart_id ? (
+              <div className="py-8 text-center text-slate-500 border-2 border-dashed border-slate-200 rounded-xl">
+                Select a shade chart above to add lines.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {lines.map((l, idx) => (
+                  <div key={l.id} className="flex gap-4 items-start p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="w-8 pt-2 text-center font-medium text-slate-400">{idx + 1}</div>
+                    <div className="flex-1">
+                      <Field label="Shade">
+                        <div className="relative">
+                          {l.shade_id && (
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-slate-200 shadow-sm" 
+                              style={{ backgroundColor: availableShades.find(s => s.id.toString() === l.shade_id)?.hex || '#ccc' }} 
+                            />
+                          )}
+                          <Select 
+                            className={l.shade_id ? 'pl-9' : ''}
+                            value={l.shade_id} 
+                            onChange={e => updateLine(l.id, 'shade_id', e.target.value)}
+                          >
+                            <option value="">Select shade...</option>
+                            {availableShades.map(s => <option key={s.id} value={s.id}>{s.number} {s.name ? `- ${s.name}` : ''}</option>)}
+                          </Select>
+                        </div>
+                      </Field>
+                    </div>
+                    <div className="w-32">
+                      <Field label="Takas">
+                        <Input type="number" min="1" value={l.taka_count} onChange={e => updateLine(l.id, 'taka_count', e.target.value)} placeholder="e.g. 24" />
+                      </Field>
+                    </div>
+                    <div className="pt-7">
+                      <button type="button" onClick={() => removeLine(l.id)} className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-white border border-transparent hover:border-slate-200"><Trash2 className="w-5 h-5" /></button>
+                    </div>
+                  </div>
+                ))}
+                {lines.length === 0 && (
+                  <Empty title="No shades added" description="Add lines to instruct which shades to dye." />
+                )}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card className="p-6 bg-slate-50 border-slate-200 sticky top-6">
+            <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">Allocation Summary</h3>
+            <div className="space-y-4">
+              <div>
+                <div className="text-sm text-slate-500">Available at Mill</div>
+                <div className="text-2xl font-bold text-slate-900">{availableTakas.length}</div>
+              </div>
+              <div className="pt-4 border-t border-slate-200">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm text-slate-500">To be dyed (Takas)</span>
+                  <span className={`text-2xl font-bold ${totalTakas > availableTakas.length ? 'text-red-600' : 'text-primary-700'}`}>
+                    {totalTakas}
+                  </span>
+                </div>
+                <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden mt-2">
+                  <div 
+                    className={`h-full rounded-full transition-all ${totalTakas > availableTakas.length ? 'bg-red-500' : 'bg-primary-500'}`}
+                    style={{ width: `${Math.min(100, (totalTakas / Math.max(1, availableTakas.length)) * 100)}%` }}
+                  />
+                </div>
+                {totalTakas > availableTakas.length && (
+                  <p className="text-xs text-red-600 mt-2">Exceeds available takas!</p>
+                )}
+              </div>
+            </div>
+            
+            <div className="mt-8 pt-6 border-t border-slate-200">
+              <Button type="submit" className="w-full h-12 text-base shadow-sm" disabled={totalTakas === 0 || totalTakas > availableTakas.length}>
+                <Save className="w-5 h-5 mr-2" />
+                Issue Program
+              </Button>
+            </div>
+          </Card>
+        </div>
+      </form>
+      </div>
+    </Drawer>
+  );
+}
