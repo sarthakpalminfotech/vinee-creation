@@ -1,208 +1,143 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { PageHeader, Card, Select, Input, Table, Th, Td, Empty, Alert, LoadState, Pager, usePaged } from '../../components/ui';
-import { Boxes, CheckCircle2 } from 'lucide-react';
-import { fmtM, fmtInt } from '../../lib/format';
+import { Link, useSearchParams } from 'react-router-dom';
+import { PageHeader, Alert, LoadState, Empty, Card } from '../../components/ui';
+import { Qty, StatTile, Chip, Swatch, SectionTitle } from '../../components/kit';
+import { Boxes, CheckCircle2, MapPin, ChevronRight } from 'lucide-react';
+import { fmtInt, fmtM } from '../../lib/format';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
 
 const VIEWS = ['godown', 'mill', 'dyeing', 'finished'];
+const VIEW_META = {
+  godown: { tone: 'slate', accent: 'bg-slate-400', hint: 'Grey cloth lying in our own godowns' },
+  mill: { tone: 'sky', accent: 'bg-sky-500', hint: 'Grey cloth sent to mills, not yet in a program' },
+  dyeing: { tone: 'violet', accent: 'bg-violet-500', hint: 'Takas under a dyeing program' },
+  finished: { tone: 'emerald', accent: 'bg-emerald-500', hint: 'Dyed takas back from the mill (folded or not)' },
+};
 const natural = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true });
 
+/** Inventory overview: four stage tiles → branch wise godown stock → one card per quality. A card opens the detail page. */
 export default function InventoryPage() {
   const [params, setParams] = useSearchParams();
   const view = VIEWS.includes(params.get('view')) ? params.get('view') : 'godown';
+  const branchId = view === 'godown' ? params.get('branch') || '' : '';
   const [counts, setCounts] = useState(null);
+  const [byBranch, setByBranch] = useState([]);
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [masters, setMasters] = useState({ qualities: [], groups: [], mills: [], shades: [], locations: [], branches: [] });
-  const [byBranch, setByBranch] = useState([]);
-  const [f, setF] = useState({ quality_id: '', group_id: '', weaver_id: '', mill_id: '', shade_id: '', location_id: '', branch_id: '' });
-  const [search, setSearch] = useState('');
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const [qualities, groups, mills, shades, locations, branches] = await Promise.all([repo.listQualities(), repo.listWeaverGroups(), repo.listMills(), repo.listShades(), repo.listLocations(), repo.listBranches()]);
-        setMasters({ qualities, groups, mills, shades, locations, branches });
-      } catch (e) { setError(e.message); }
-    })();
-  }, []);
-
   const dbVersion = useDbVersion();
+
   useEffect(() => {
     let live = true;
-    setLoading(true);
-    // filters that are not shown for this view must not silently hide stock
-    const eff = { ...f };
-    if (view === 'godown') { eff.mill_id = ''; eff.shade_id = ''; }
-    if (view === 'mill') eff.shade_id = '';
-    if (view !== 'godown') { eff.location_id = ''; eff.branch_id = ''; }
-    Promise.all([repo.inventoryCounts(), repo.inventoryList(view, eff), repo.godownByBranch()])
-      .then(([c, r, b]) => { if (live) { setCounts(c); setRows(r); setByBranch(b); setError(''); } })
+    Promise.all([repo.inventoryCounts(), repo.godownByBranch(), repo.inventoryList(view, { branch_id: branchId })])
+      .then(([c, b, r]) => { if (live) { setCounts(c); setByBranch(b); setRows(r); setError(''); } })
       .catch((e) => live && setError(e.message))
       .finally(() => live && setLoading(false));
     return () => { live = false; };
-  }, [view, f, dbVersion]);
+  }, [view, branchId, dbVersion]);
 
-  const set = (k, v) => setF((p) => ({ ...p, [k]: v, ...(k === 'group_id' ? { weaver_id: '' } : {}), ...(k === 'branch_id' ? { location_id: '' } : {}) }));
-  const shown = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return (q ? rows.filter((t) => `${t.challan_no}/${t.taka_no} ${t.nick_name} ${t.weaver_name}`.toLowerCase().includes(q)) : rows)
-      .sort((a, b) => natural(a.challan_no, b.challan_no) || natural(a.taka_no, b.taka_no));
-  }, [rows, search]);
-  const paged = usePaged(shown, 100);
+  const go = (next) => setParams(Object.fromEntries(Object.entries(next).filter(([, v]) => v)));
 
-  const totals = useMemo(() => ({ takas: shown.length, m: Math.round(shown.reduce((s, t) => s + t.stock_m, 0) * 100) / 100 }), [shown]);
-  const summary = useMemo(() => {
+  // one card per quality; coloured stages also count the colours that have stock
+  const cards = useMemo(() => {
     const m = new Map();
-    for (const t of shown) {
-      const key = `${t.quality_id}|${view === 'godown' || view === 'mill' ? '' : t.shade_id}`;
-      if (!m.has(key)) m.set(key, { key, quality: t.nick_name, shade: view === 'godown' || view === 'mill' ? null : t.shade_no, hex: t.shade_hex, takas: 0, m: 0 });
-      const g = m.get(key); g.takas += 1; g.m = Math.round((g.m + t.stock_m) * 100) / 100;
+    for (const t of rows) {
+      if (!m.has(t.quality_id)) m.set(t.quality_id, { id: t.quality_id, nick: t.nick_name, original: t.original_name, takas: 0, m: 0, shades: new Map(), mills: new Set(), branches: new Set() });
+      const g = m.get(t.quality_id);
+      g.takas += 1; g.m = Math.round((g.m + t.stock_m) * 100) / 100;
+      if (t.shade_id) g.shades.set(t.shade_id, { hex: t.shade_hex, no: t.item_code || t.shade_no });
+      if (t.mill_name) g.mills.add(t.mill_name);
+      if (t.branch_name) g.branches.add(t.branch_name);
     }
-    return [...m.values()].sort((a, b) => natural(a.quality, b.quality) || natural(a.shade || '', b.shade || ''));
-  }, [shown, view]);
-
-  const group = masters.groups.find((g) => String(g.id) === f.group_id);
-  const parties = masters.groups.flatMap((g) => g.firms.map((w) => ({ ...w, group_name: g.name }))).filter((w) => !f.group_id || String(w.group_id) === f.group_id);
-  const racks = masters.locations.filter((l) => !f.branch_id || String(l.branch_id) === f.branch_id);
-  const showShade = view === 'dyeing' || view === 'finished';
-  const showMill = view !== 'godown';
+    return [...m.values()].sort((a, b) => natural(a.nick, b.nick));
+  }, [rows]);
 
   if (error && !counts) return <LoadState error={error} />;
+  const coloured = view === 'dyeing' || view === 'finished';
+  const branchName = byBranch.find((b) => String(b.id) === String(branchId))?.name;
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Inventory" description="Four kinds of stock — every total below is the sum of the taka rows shown." />
+    <div className="space-y-8">
+      <PageHeader title="Inventory" description="Everything we hold, stage by stage. Pick a stage, then open a quality for the full details." />
 
       {counts && (counts.reconciled
-        ? <Alert tone="success"><span className="inline-flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Reconciled: {fmtInt(counts.views.godown.takas)} + {fmtInt(counts.views.mill.takas)} + {fmtInt(counts.views.dyeing.takas)} + {fmtInt(counts.views.finished.takas)} = {fmtInt(counts.sum)} takas = all active takas ({fmtInt(counts.sold)} already sold are not stock).</span></Alert>
-        : <Alert>Stock does not reconcile: views add up to {counts.sum} takas but {counts.active} takas are active{counts.other ? ` (${counts.other} in an unknown state)` : ''}.</Alert>)}
+        ? <Alert tone="success"><span className="inline-flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Stock is reconciled — the four stages add up to all {fmtInt(counts.sum)} active takas ({fmtInt(counts.sold)} sold are not stock).</span></Alert>
+        : <Alert>Stock does not reconcile: stages add up to {counts.sum} takas but {counts.active} takas are active{counts.other ? ` (${counts.other} in an unknown state)` : ''}.</Alert>)}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {VIEWS.map((v) => (
-          <button key={v} type="button" id={`view-${v}`} onClick={() => setParams({ view: v })}
-            className={`text-left rounded-xl border p-4 bg-white transition ${view === v ? 'border-primary-500 ring-2 ring-primary-200' : 'border-slate-200 hover:border-slate-300'}`}>
-            <div className="text-sm text-slate-500">{repo.INVENTORY_VIEWS[v].label}</div>
-            <div className="text-2xl font-bold text-slate-900">{counts ? fmtInt(counts.views[v].takas) : '—'} <span className="text-sm font-normal text-slate-500">taka</span></div>
-            <div className="text-sm text-slate-600">{counts ? fmtM(counts.views[v].m) : '—'} m</div>
-          </button>
-        ))}
-      </div>
+      {/* 1 · the four stages */}
+      <section>
+        <SectionTitle title="Stock by stage" />
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          {VIEWS.map((v) => (
+            <StatTile key={v} label={repo.INVENTORY_VIEWS[v].label} tone={VIEW_META[v].tone} accent={VIEW_META[v].accent}
+              value={counts ? fmtInt(counts.views[v].takas) : '—'} unit="taka"
+              sub={<><span className="font-semibold text-slate-800">{counts ? fmtM(counts.views[v].m) : '—'}</span> <span className="text-slate-400 text-xs">meters</span></>}
+              active={view === v} onClick={() => go({ view: v })} />
+          ))}
+        </div>
+      </section>
 
-      {view === 'godown' && byBranch.length > 0 && (
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Grey in our godowns — branch wise</div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {byBranch.map((b) => (
-              <button key={b.id ?? 'none'} type="button" onClick={() => set('branch_id', String(f.branch_id) === String(b.id) ? '' : String(b.id ?? ''))}
-                className={`text-left rounded-xl border p-3 bg-white transition ${String(f.branch_id) === String(b.id) ? 'border-primary-500 ring-2 ring-primary-200' : 'border-slate-200 hover:border-slate-300'}`}>
-                <div className="text-sm font-medium text-slate-800 truncate">{b.name}</div>
-                <div className="text-xl font-bold text-slate-900">{fmtInt(b.takas)} <span className="text-sm font-normal text-slate-500">taka</span></div>
-                <div className="text-xs text-slate-600">{fmtM(b.m)} m{b.unassigned ? ` · ${b.unassigned} without rack` : ''}</div>
-              </button>
+      {/* 2 · grey in our godowns, branch wise */}
+      <section>
+        <SectionTitle title="Grey at our place — branch wise" hint="Tap a branch to see only its stock below" />
+        {byBranch.length === 0 ? (
+          <Card className="p-5 text-sm text-slate-500">No grey in our godowns right now.</Card>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {byBranch.map((b) => {
+              const on = view === 'godown' && String(branchId) === String(b.id);
+              return (
+                <button key={b.id ?? 'none'} type="button" onClick={() => go({ view: 'godown', branch: on ? '' : String(b.id ?? '') })}
+                  className={`text-left rounded-xl border bg-white p-4 transition hover:shadow-md ${on ? 'border-primary-500 ring-2 ring-primary-100' : 'border-slate-200 hover:border-slate-300'}`}>
+                  <div className="flex items-center gap-2 text-slate-800 font-semibold"><MapPin className="w-4 h-4 text-slate-400" />{b.name}</div>
+                  <Qty className="mt-3" takas={b.takas} meters={b.m} />
+                  {b.unassigned > 0 && <div className="mt-2 text-xs text-amber-600">{fmtInt(b.unassigned)} taka without a rack</div>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* 3 · one card per quality for the chosen stage */}
+      <section>
+        <SectionTitle
+          title={`${repo.INVENTORY_VIEWS[view].label} — by quality`}
+          hint={`${VIEW_META[view].hint}${branchName ? ` · ${branchName} only` : ''}`}
+          right={branchName && <button className="text-xs text-primary-600 hover:underline" onClick={() => go({ view })}>Clear branch filter</button>} />
+        {loading ? <div className="p-12 text-center text-slate-500">Loading...</div> : cards.length === 0 ? (
+          <Empty icon={Boxes} title="No stock here" description="Nothing is held at this stage right now." />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {cards.map((q) => (
+              <Link key={q.id} to={`/inventory/${view}/${q.id}${branchId ? `?branch=${branchId}` : ''}`}
+                className="group rounded-xl border border-slate-200 bg-white p-5 hover:shadow-md hover:border-primary-300 transition">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-lg font-bold text-slate-900 truncate">{q.nick}</div>
+                    <div className="text-xs text-slate-500 truncate">{q.original}</div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-primary-500 shrink-0" />
+                </div>
+                <Qty className="mt-4" tone={VIEW_META[view].tone} takas={q.takas} meters={q.m} />
+                <div className="mt-3 min-h-[26px] flex flex-wrap items-center gap-2">
+                  {coloured ? (
+                    <>
+                      <Chip tone={VIEW_META[view].tone}>{q.shades.size} {q.shades.size === 1 ? 'colour' : 'colours'} in stock</Chip>
+                      <span className="flex -space-x-1.5">{[...q.shades.values()].slice(0, 8).map((s, i) => <Swatch key={i} hex={s.hex} size="sm" />)}</span>
+                    </>
+                  ) : view === 'mill' ? (
+                    <Chip tone="sky">{q.mills.size} {q.mills.size === 1 ? 'mill' : 'mills'}: {[...q.mills].slice(0, 2).join(', ')}{q.mills.size > 2 ? '…' : ''}</Chip>
+                  ) : (
+                    <Chip>{q.branches.size} {q.branches.size === 1 ? 'branch' : 'branches'}: {[...q.branches].slice(0, 2).join(', ')}{q.branches.size > 2 ? '…' : ''}</Chip>
+                  )}
+                </div>
+              </Link>
             ))}
           </div>
-        </div>
-      )}
-
-      <Card>
-        <div className="p-4 border-b border-slate-100 flex flex-wrap gap-3 items-center bg-slate-50/50">
-          <Select className="w-40" value={f.quality_id} onChange={(e) => set('quality_id', e.target.value)}>
-            <option value="">All qualities</option>
-            {masters.qualities.map((q) => <option key={q.id} value={q.id}>{q.nick_name}</option>)}
-          </Select>
-          <Select className="w-44" value={f.group_id} onChange={(e) => set('group_id', e.target.value)}>
-            <option value="">All party groups</option>
-            {masters.groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </Select>
-          <Select className="w-44" value={f.weaver_id} onChange={(e) => set('weaver_id', e.target.value)}>
-            <option value="">All parties{group ? ` in ${group.name}` : ''}</option>
-            {parties.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-          </Select>
-          {showMill && (
-            <Select className="w-40" value={f.mill_id} onChange={(e) => set('mill_id', e.target.value)}>
-              <option value="">All mills</option>
-              {masters.mills.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </Select>
-          )}
-          {showShade && (
-            <Select className="w-44" value={f.shade_id} onChange={(e) => set('shade_id', e.target.value)}>
-              <option value="">All shades</option>
-              {masters.shades.map((s) => <option key={s.id} value={s.id}>{s.chart_name}: {s.number}</option>)}
-            </Select>
-          )}
-          {view === 'godown' && (
-            <Select className="w-44" value={f.branch_id} onChange={(e) => set('branch_id', e.target.value)}>
-              <option value="">All branches</option>
-              {masters.branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </Select>
-          )}
-          {view === 'godown' && (
-            <Select className="w-48" value={f.location_id} onChange={(e) => set('location_id', e.target.value)}>
-              <option value="">All racks</option>
-              {racks.map((l) => <option key={l.id} value={l.id}>{repo.locLabel(l.shop, l.rack, f.branch_id ? '' : l.branch_name)}</option>)}
-            </Select>
-          )}
-          <Input className="w-44" placeholder="Search taka / party…" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <div className="ml-auto text-sm font-medium text-slate-700" id="inv-total">{fmtInt(totals.takas)} takas · {fmtM(totals.m)} m</div>
-        </div>
-
-        {loading ? <div className="p-12 text-center text-slate-500">Loading...</div> : shown.length === 0 ? (
-          <div className="p-6"><Empty icon={Boxes} title="No stock here" description="Nothing matches this view and these filters." /></div>
-        ) : (
-          <>
-            <div className="p-4 border-b border-slate-100">
-              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Summary</div>
-              <div className="flex flex-wrap gap-2 text-sm">
-                {summary.map((g) => (
-                  <span key={g.key} className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
-                    {g.hex && <span className="w-3 h-3 rounded-sm border border-slate-200" style={{ backgroundColor: g.hex }} />}
-                    {g.quality}{g.shade ? ` · ${g.shade}` : ''}: <strong>{g.takas}</strong> tk · {fmtM(g.m)} m
-                  </span>
-                ))}
-              </div>
-            </div>
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Taka</Th><Th>Quality</Th><Th>Party</Th>
-                  {view === 'godown' && <Th>Branch</Th>}
-                  {view === 'godown' && <Th>Rack</Th>}
-                  {showMill && <Th>Mill</Th>}
-                  {showShade && <Th>Shade</Th>}
-                  {view === 'dyeing' && <Th>Program</Th>}
-                  {view === 'finished' && <Th>State</Th>}
-                  <Th className="text-right">Meters</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {paged.rows.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-50">
-                    <Td className="font-medium text-slate-900">{t.label}</Td>
-                    <Td>{t.nick_name}</Td>
-                    <Td>{t.weaver_name}</Td>
-                    {view === 'godown' && <Td>{t.branch_name || <span className="text-amber-600 text-xs">—</span>}</Td>}
-                    {view === 'godown' && <Td>{t.location_id ? repo.locLabel(t.shop, t.rack) : <span className="text-amber-600 text-xs font-medium">Unassigned</span>}</Td>}
-                    {showMill && <Td>{t.mill_name || '—'}</Td>}
-                    {showShade && <Td><span className="inline-flex items-center gap-2"><span className="w-3 h-3 rounded-sm border border-slate-200" style={{ backgroundColor: t.shade_hex || '#ccc' }} />{t.item_code ? <span className="font-mono font-semibold">{t.item_code}</span> : (t.shade_no || '—')}</span></Td>}
-                    {view === 'dyeing' && <Td>{t.program_no}</Td>}
-                    {view === 'finished' && <Td>{t.status === 'FOLDED' ? 'Folded (ready)' : 'Not folded yet'}</Td>}
-                    <Td className="text-right">{fmtM(t.stock_m)}</Td>
-                  </tr>
-                ))}
-                <tr className="bg-slate-50 font-bold">
-                  <Td colSpan={3 + (view === 'godown' ? 2 : 0) + (showMill ? 1 : 0) + (showShade ? 1 : 0) + (view === 'dyeing' || view === 'finished' ? 1 : 0)}>Total</Td>
-                  <Td className="text-right">{fmtM(totals.m)}</Td>
-                </tr>
-              </tbody>
-            </Table>
-            <Pager paged={paged} />
-          </>
         )}
-      </Card>
+      </section>
     </div>
   );
 }

@@ -28,6 +28,7 @@ import FoldingPage from './pages/folding/FoldingPage';
 import LocationAssignmentPage from './pages/assignment/LocationAssignmentPage';
 
 import InventoryPage from './pages/inventory/InventoryPage';
+import InventoryDetailPage from './pages/inventory/InventoryDetailPage';
 import AvailabilityPage from './pages/orders/AvailabilityPage';
 import ShrinkagePage from './pages/reports/ShrinkagePage';
 
@@ -72,6 +73,7 @@ export default function App() {
           <Route path="programs/:id/receive" element={<ReceiveProgramPage />} />
 
           <Route path="inventory" element={<InventoryPage />} />
+          <Route path="inventory/:view/:qualityId" element={<InventoryDetailPage />} />
           <Route path="availability" element={<AvailabilityPage />} />
           <Route path="reports/shrinkage" element={<ShrinkagePage />} />
           <Route path="folding" element={<FoldingPage />} />
