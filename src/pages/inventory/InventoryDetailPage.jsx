@@ -9,7 +9,7 @@ import { useDbVersion } from '../../lib/live';
 
 const natural = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true });
 const r2 = (n) => Math.round(n * 100) / 100;
-const TONE = { godown: 'slate', mill: 'sky', dyeing: 'violet', finished: 'emerald' };
+const TONE = { godown: 'slate', mill: 'sky', dyeing: 'violet', finished: 'emerald', dead: 'amber' };
 
 /** Details of one quality at one stage: totals → (colours) → filters → every taka. */
 export default function InventoryDetailPage() {
@@ -23,14 +23,17 @@ export default function InventoryDetailPage() {
 
   useEffect(() => {
     let live = true;
-    if (!repo.INVENTORY_VIEWS[view]) { setError('Unknown stock stage'); return undefined; }
-    repo.inventoryList(view, { quality_id: qualityId })
+    if (!repo.INVENTORY_VIEWS[view] && view !== 'dead') { setError('Unknown stock stage'); return undefined; }
+    (view === 'dead' ? repo.getDeadStockDays().then((d) => repo.deadStock(d, { quality_id: qualityId })) : repo.inventoryList(view, { quality_id: qualityId }))
       .then((r) => live && (setAll(r), setError('')))
       .catch((e) => live && setError(e.message));
     return () => { live = false; };
   }, [view, qualityId, dbVersion]);
 
-  const coloured = view === 'dyeing' || view === 'finished';
+  const dead = view === 'dead';
+  const fin = view === 'finished' || dead; // finished goods (dead stock is a slice of them)
+  const coloured = view === 'dyeing' || fin;
+  const stageLabel = dead ? 'Dead stock' : repo.INVENTORY_VIEWS[view]?.label;
   const tone = TONE[view];
 
   // everything except the colour choice, so the colour cards keep showing their full numbers
@@ -86,7 +89,7 @@ export default function InventoryDetailPage() {
   if (!head) {
     return (
       <div className="space-y-6">
-        <Link to={`/inventory?view=${view}`} className="inline-flex items-center text-sm text-slate-500 hover:text-slate-800"><ArrowLeft className="w-4 h-4 mr-1" /> Inventory</Link>
+        <Link to={dead ? '/inventory?mode=dead' : `/inventory?view=${view}`} className="inline-flex items-center text-sm text-slate-500 hover:text-slate-800"><ArrowLeft className="w-4 h-4 mr-1" /> Inventory</Link>
         <Empty icon={Boxes} title="No stock left" description="This quality has no takas at this stage any more." />
       </div>
     );
@@ -98,8 +101,8 @@ export default function InventoryDetailPage() {
   return (
     <div className="space-y-8">
       <div>
-        <Link to={`/inventory?view=${view}`} className="inline-flex items-center text-sm text-slate-500 hover:text-slate-800 mb-3"><ArrowLeft className="w-4 h-4 mr-1" /> Inventory</Link>
-        <PageHeader title={`${head.nick_name} · ${repo.INVENTORY_VIEWS[view].label}`} />
+        <Link to={dead ? '/inventory?mode=dead' : `/inventory?view=${view}`} className="inline-flex items-center text-sm text-slate-500 hover:text-slate-800 mb-3"><ArrowLeft className="w-4 h-4 mr-1" /> Inventory</Link>
+        <PageHeader title={`${head.nick_name} · ${stageLabel}`} />
       </div>
 
       {/* 1 · totals for this quality at this stage */}
@@ -109,7 +112,9 @@ export default function InventoryDetailPage() {
           <StatTile label="Takas" tone={tone} value={fmtInt(total.takas)} />
           <StatTile label="Meters" tone={tone} value={fmtM(total.m)} unit="m" />
           <StatTile label="Average per taka" value={total.takas ? fmtM(total.m / total.takas) : '—'} unit="m" />
-          {view === 'finished' ? (
+          {dead ? (
+            <StatTile label="Longest idle" tone="amber" value={fmtInt(Math.max(...all.map((t) => t.idle_days)))} unit="days" />
+          ) : view === 'finished' ? (
             <StatTile label="Folded (ready to sell)" tone="emerald" value={fmtInt(foldedAll.length)} unit="taka" sub={`${fmtM(r2(foldedAll.reduce((s, t) => s + t.stock_m, 0)))} m · ${fmtInt(total.takas - foldedAll.length)} still to fold`} />
           ) : view === 'dyeing' ? (
             <StatTile label="Programs running" tone="violet" value={programs.length} />
@@ -143,7 +148,7 @@ export default function InventoryDetailPage() {
                     </div>
                   </div>
                   <Qty className="mt-3" tone={tone} takas={c.takas} meters={c.m} />
-                  {view === 'finished' ? (
+                  {fin ? (
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Chip tone="emerald">{fmtInt(c.folded.takas)} folded · {fmtM(c.folded.m)} m</Chip>
                       {c.unfolded.takas > 0 && <Chip tone="amber">{fmtInt(c.unfolded.takas)} to fold · {fmtM(c.unfolded.m)} m</Chip>}
@@ -216,7 +221,7 @@ export default function InventoryDetailPage() {
                     {showMill && <Th>Mill</Th>}
                     {coloured && <Th>Colour</Th>}
                     {view === 'dyeing' && <Th>Program</Th>}
-                    {view === 'finished' && <Th>State</Th>}
+                    {fin && <Th>State</Th>}{dead && <Th>Idle</Th>}
                     <Th className="text-right">Meters</Th>
                   </tr>
                 </thead>
@@ -230,14 +235,15 @@ export default function InventoryDetailPage() {
                       {showMill && <Td>{t.mill_name || '—'}</Td>}
                       {coloured && <Td><span className="inline-flex items-center gap-2"><Swatch hex={t.shade_hex} size="sm" /><span className="font-mono font-semibold">{t.item_code || t.shade_no || '—'}</span></span></Td>}
                       {view === 'dyeing' && <Td>{t.program_no}</Td>}
-                      {view === 'finished' && <Td>{t.status === 'FOLDED' ? <Chip tone="emerald">Folded</Chip> : <Chip tone="amber">To fold</Chip>}</Td>}
+                      {fin && <Td>{t.status === 'FOLDED' ? <Chip tone="emerald">Folded</Chip> : <Chip tone="amber">To fold</Chip>}</Td>}
+                      {dead && <Td className="font-semibold">{fmtInt(t.idle_days)} <span className="text-[11px] font-normal text-slate-400">days</span></Td>}
                       <Td className="text-right font-semibold tabular-nums">{fmtM(t.stock_m)}<span className="ml-1 text-[11px] font-normal text-slate-400">m</span></Td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-50">
-                    <Td colSpan={2 + (showBranch ? 2 : 0) + (showMill ? 1 : 0) + (coloured ? 1 : 0) + (view === 'dyeing' || view === 'finished' ? 1 : 0)} className="font-semibold text-slate-700">Total ({fmtInt(shownTotal.takas)} taka)</Td>
+                    <Td colSpan={2 + (showBranch ? 2 : 0) + (showMill ? 1 : 0) + (coloured ? 1 : 0) + (view === 'dyeing' || fin ? 1 : 0) + (dead ? 1 : 0)} className="font-semibold text-slate-700">Total ({fmtInt(shownTotal.takas)} taka)</Td>
                     <Td className="text-right font-bold tabular-nums">{fmtM(shownTotal.m)}<span className="ml-1 text-[11px] font-normal text-slate-400">m</span></Td>
                   </tr>
                 </tfoot>

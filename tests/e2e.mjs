@@ -203,6 +203,17 @@ try {
   await repo.updateReceipt(r1, { challan_no: 'GF-1', date: '2026-01-05', weaver_id: fFab, notes: 'header only' })
   eq('header of a processed challan can still change', (await repo.getReceipt(r1)).notes, 'header only')
   eq('inventory reconciles after edits', (await repo.inventoryCounts()).reconciled, true)
+
+  // 17. dead stock: finished goods untouched for N days (N is a user setting)
+  eq('default dead-stock days', await repo.getDeadStockDays(), 30)
+  await expectThrow('dead-stock days must be a whole number >= 1', () => repo.setDeadStockDays(0))
+  eq('dead-stock days saved', await repo.setDeadStockDays(45), 45)
+  eq('dead-stock days read back', await repo.getDeadStockDays(), 45)
+  const finishedNow = await repo.inventoryList('finished', {})
+  check('there is finished stock to test with', finishedNow.length > 0)
+  eq('nothing is dead today', (await repo.deadStock(45)).length, 0)
+  eq('everything finished is dead after 46 days', (await repo.deadStock(45, {}, Date.now() + 46 * 864e5)).length, finishedNow.length)
+  eq('boundary: 44 days idle is not dead for a 45-day rule', (await repo.deadStock(45, {}, Date.now() + 44 * 864e5)).length, 0)
 } catch (e) {
   fail++; console.log('FAIL  unexpected error:', e.stack || e)
 }

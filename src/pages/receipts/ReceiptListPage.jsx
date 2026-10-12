@@ -6,13 +6,14 @@ import { Plus, FileText, MapPin, ShieldCheck } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
 import { Qty } from '../../components/kit';
-import { SearchToggle } from '../../components/kit';
+import { SearchToggle, ListFilter, uniqueOptions, inDateRange } from '../../components/kit';
 
 export default function ReceiptListPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [receipts, setReceipts] = useState([]);
   const [search, setSearch] = useState('');
+  const [flt, setFlt] = useState({});
   const [error, setError] = useState('');
 
   const dbVersion = useDbVersion();
@@ -30,19 +31,21 @@ export default function ReceiptListPage() {
     load();
   }, [dbVersion]);
 
-  const filtered = receipts.filter(r => 
+  const searched = receipts.filter(r => 
     r.challan_no.toLowerCase().includes(search.toLowerCase()) || 
     r.po_no.toLowerCase().includes(search.toLowerCase()) || 
     r.weaver_name.toLowerCase().includes(search.toLowerCase()) ||
     r.nick_name.toLowerCase().includes(search.toLowerCase()) || r.original_name.toLowerCase().includes(search.toLowerCase())
   );
 
+  const filtered = searched.filter(r => (!flt.weaver_id || String(r.weaver_id) === flt.weaver_id) && (!flt.po_id || String(r.po_id) === flt.po_id) && (!flt.quality_id || String(r.quality_id) === flt.quality_id) && (!flt.destination || r.destination === flt.destination) && (!flt.branch_id || String(r.branch_id) === flt.branch_id) && inDateRange(r.date, flt));
   const paged = usePaged(filtered, 50);
   if (loading || error) return <LoadState loading={loading} error={error} />;
 
   return (
     <div className="space-y-6">
       <PageHeader title="Grey Challans (Receipts)" description="Manage incoming grey fabric from weavers.">
+        <ListFilter values={flt} onChange={setFlt} fields={[{ key: 'weaver_id', label: 'Party (firm)', options: uniqueOptions(receipts, (x) => x.weaver_id, (x) => x.weaver_name) }, { key: 'po_id', label: 'PO', options: uniqueOptions(receipts, (x) => x.po_id, (x) => x.po_no) }, { key: 'quality_id', label: 'Quality', options: uniqueOptions(receipts, (x) => x.quality_id, (x) => x.nick_name) }, { key: 'destination', label: 'Destination', options: [['GODOWN', 'Our godown'], ['MILL', 'Direct to mill']] }, { key: 'branch_id', label: 'Branch', options: uniqueOptions(receipts, (x) => x.branch_id, (x) => x.branch_name) }]} />
         <SearchToggle value={search} onChange={setSearch} placeholder="Search challan, PO, weaver or quality..." />
         <Button onClick={() => navigate('/receipts/new')}><Plus className="w-4 h-4 mr-2" /> Receive Challan</Button>
       </PageHeader>

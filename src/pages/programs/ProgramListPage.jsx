@@ -6,13 +6,14 @@ import { Plus, Scissors } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
 import { Qty } from '../../components/kit';
-import { SearchToggle } from '../../components/kit';
+import { SearchToggle, ListFilter, uniqueOptions, inDateRange } from '../../components/kit';
 
 export default function ProgramListPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [programs, setPrograms] = useState([]);
   const [search, setSearch] = useState('');
+  const [flt, setFlt] = useState({});
   const [error, setError] = useState('');
 
   const dbVersion = useDbVersion();
@@ -30,11 +31,13 @@ export default function ProgramListPage() {
     load();
   }, [dbVersion]);
 
-  const filtered = programs.filter(p => 
+  const searched = programs.filter(p => 
     p.program_no.toLowerCase().includes(search.toLowerCase()) || 
     p.mill_name.toLowerCase().includes(search.toLowerCase()) ||
     p.nick_name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const filtered = searched.filter(p => (!flt.mill_id || String(p.mill_id) === flt.mill_id) && (!flt.quality_id || String(p.quality_id) === flt.quality_id) && (!flt.status || p.status === flt.status) && inDateRange(p.date, flt));
 
   const getStatusBadge = (status) => {
     if (status === 'DONE') return <Badge variant="success">Done</Badge>;
@@ -48,6 +51,7 @@ export default function ProgramListPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Dyeing Programs" description="Issue dyeing instructions and track progress at mills.">
+        <ListFilter values={flt} onChange={setFlt} fields={[{ key: 'mill_id', label: 'Mill', options: uniqueOptions(programs, (x) => x.mill_id, (x) => x.mill_name) }, { key: 'quality_id', label: 'Quality', options: uniqueOptions(programs, (x) => x.quality_id, (x) => x.nick_name) }, { key: 'status', label: 'Status', options: [['PENDING', 'In dyeing'], ['PARTIAL', 'Partly received'], ['DONE', 'Done']] }]} />
         <SearchToggle value={search} onChange={setSearch} placeholder="Search program no, mill, or quality..." />
         <Button onClick={() => navigate('/programs/new')}><Plus className="w-4 h-4 mr-2" /> Issue Program</Button>
       </PageHeader>

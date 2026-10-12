@@ -4,7 +4,7 @@ import React, { useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X, SlidersHorizontal } from 'lucide-react';
 import { fmtInt, fmtM } from '../lib/format';
-import { Button, Modal, SearchSlotContext } from './ui';
+import { Button, Modal, SearchSlotContext, Field, Input, Select } from './ui';
 
 const TONES = {
   slate: 'text-slate-900',
@@ -182,5 +182,42 @@ export function FilterButton({ count = 0, title = 'Filters', onClear, children }
         </div>
       </Modal>
     </>
+  );
+}
+
+/** Unique [value,label] options from rows, sorted by label. */
+export function uniqueOptions(rows, idOf, labelOf) {
+  const m = new Map();
+  for (const row of rows) { const id = idOf(row); if (id != null && id !== '' && !m.has(String(id))) m.set(String(id), labelOf(row)); }
+  return [...m.entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]), undefined, { numeric: true }));
+}
+/** Date (YYYY-MM-DD) inside the filter's from/to range (open ended). */
+export const inDateRange = (d, v) => (!v.from || (!!d && d >= v.from)) && (!v.to || (!!d && d <= v.to));
+
+/**
+ * Filter-icon + modal for list screens: a dropdown per field (options: [[value,label]]) and a from/to date range.
+ * `values` is a plain object ({field: value, from, to}); the page does the actual filtering.
+ */
+export function ListFilter({ fields, values, onChange, dates = true, title = 'Filters' }) {
+  const keys = [...fields.map((f) => f.key), ...(dates ? ['from', 'to'] : [])];
+  const count = keys.filter((k) => values[k]).length;
+  const set = (k, v) => onChange({ ...values, [k]: v });
+  return (
+    <FilterButton count={count} title={title} onClear={() => onChange({})}>
+      {fields.map((f) => (
+        <Field key={f.key} label={f.label}>
+          <Select value={values[f.key] || ''} onChange={(e) => set(f.key, e.target.value)}>
+            <option value="">All</option>
+            {f.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </Select>
+        </Field>
+      ))}
+      {dates && (
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="From date"><Input type="date" value={values.from || ''} onChange={(e) => set('from', e.target.value)} /></Field>
+          <Field label="To date"><Input type="date" value={values.to || ''} onChange={(e) => set('to', e.target.value)} /></Field>
+        </div>
+      )}
+    </FilterButton>
   );
 }

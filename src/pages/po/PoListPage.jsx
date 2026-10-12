@@ -5,7 +5,7 @@ import { fmtM, fmtPct, fmtDate } from '../../lib/format';
 import { Plus, FileText } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
-import { SearchToggle } from '../../components/kit';
+import { SearchToggle, ListFilter, uniqueOptions, inDateRange } from '../../components/kit';
 
 export default function PoListPage() {
   const navigate = useNavigate();
@@ -13,7 +13,7 @@ export default function PoListPage() {
   const [pos, setPos] = useState([]);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [flt, setFlt] = useState({});
 
   const dbVersion = useDbVersion();
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function PoListPage() {
     const sMatch = p.po_no.toLowerCase().includes(search.toLowerCase()) || 
                    p.group_name.toLowerCase().includes(search.toLowerCase()) || 
                    p.nick_name.toLowerCase().includes(search.toLowerCase());
-    const fMatch = statusFilter ? p.status === statusFilter : true;
+    const fMatch = (!flt.status || p.status === flt.status) && (!flt.group_id || String(p.group_id) === flt.group_id) && (!flt.quality_id || String(p.quality_id) === flt.quality_id) && inDateRange(p.po_date, flt);
     return sMatch && fMatch;
   });
 
@@ -45,14 +45,8 @@ export default function PoListPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Grey Purchase Orders" description="Manage all fabric orders placed to weavers.">
+        <ListFilter values={flt} onChange={setFlt} fields={[{ key: 'status', label: 'Status', options: Object.entries(repo.PO_STATUS_META).map(([k, v]) => [k, v.label]) }, { key: 'group_id', label: 'Party group', options: uniqueOptions(pos, (x) => x.group_id, (x) => x.group_name) }, { key: 'quality_id', label: 'Quality', options: uniqueOptions(pos, (x) => x.quality_id, (x) => x.nick_name) }]} />
         <SearchToggle value={search} onChange={setSearch} placeholder="Search PO, weaver, or quality..." />
-        <Select className="w-44 sm:w-52" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          <option value="">All Status</option>
-          <option value="OPEN">Open</option>
-          <option value="PARTIAL">Partly received</option>
-          <option value="RECEIVED">Received</option>
-          <option value="CLOSED">Closed (short)</option>
-        </Select>
         <Button onClick={() => navigate('/po/new')}><Plus className="w-4 h-4 mr-2" /> Create PO</Button>
       </PageHeader>
 

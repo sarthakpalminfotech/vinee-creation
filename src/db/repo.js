@@ -866,6 +866,48 @@ export async function godownByBranch() {
   return rows.map((r) => ({ id: r.id, name: r.name, takas: Number(r.c), m: r2(r.m), unassigned: Number(r.unassigned) }))
 }
 
+// ---------------------------------------------------------------- settings + dead stock
+export const DEFAULT_DEAD_STOCK_DAYS = 30
+
+export async function getSetting(key, fallback = null) {
+  const r = await one('SELECT value FROM settings WHERE key=?', [key])
+  return r ? r.value : fallback
+}
+export async function setSetting(key, value) {
+  await run('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', [key, String(value)])
+}
+/** After how many days without any movement finished goods count as dead stock (user setting). */
+export async function getDeadStockDays() {
+  const v = Number(await getSetting('dead_stock_days'))
+  return Number.isFinite(v) && v >= 1 ? Math.floor(v) : DEFAULT_DEAD_STOCK_DAYS
+}
+export async function setDeadStockDays(days) {
+  const n = Number(days)
+  if (!Number.isInteger(n) || n < 1 || n > 3650) bad('Enter a whole number of days between 1 and 3650')
+  await setSetting('dead_stock_days', n)
+  return n
+}
+
+/**
+ * Dead stock = finished goods (finished or folded, not sold) that have not been touched for `days` days.
+ * "Touched" = the last recorded movement of the taka (received, folded, …); older takas fall back to their folded / receipt date.
+ * Returns the takas (same shape as inventoryList) with last_at and idle_days. `nowMs` is injectable for tests.
+ */
+export async function deadStock(days, f = {}, nowMs = Date.now()) {
+  const [takas, last] = await Promise.all([
+    inventoryList('finished', f),
+    all('SELECT taka_id, MAX(at) AS last_at FROM taka_moves GROUP BY taka_id'),
+  ])
+  const lastById = new Map(last.map((r) => [r.taka_id, r.last_at]))
+  return takas
+    .map((t) => {
+      const at = lastById.get(t.id) || (t.folded_on ? `${t.folded_on}T00:00:00.000Z` : null) || (t.receipt_date ? `${t.receipt_date}T00:00:00.000Z` : null)
+      const idle = at ? Math.floor((nowMs - new Date(at).getTime()) / 864e5) : null
+      return { ...t, last_at: at, idle_days: idle }
+    })
+    .filter((t) => t.idle_days != null && t.idle_days >= days)
+}
+
 /** Takas of one view. filters: quality_id, group_id, weaver_id, mill_id, shade_id, location_id */
 export async function inventoryList(view, f = {}) {
   const v = INVENTORY_VIEWS[view]

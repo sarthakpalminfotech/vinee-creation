@@ -30,6 +30,7 @@ export const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_receipts_po ON grey_receipts(po_id)`,
   // --- branches + item master (additive) ---
   `CREATE TABLE IF NOT EXISTS branches (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, city TEXT, address TEXT, phone TEXT)`,
+  `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`,
   `CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL, quality_id INTEGER NOT NULL, shade_id INTEGER, notes TEXT)`,
 ]
 

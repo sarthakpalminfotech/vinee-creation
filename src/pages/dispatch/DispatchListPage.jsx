@@ -6,13 +6,14 @@ import { Plus, Truck } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
 import { Qty } from '../../components/kit';
-import { SearchToggle } from '../../components/kit';
+import { SearchToggle, ListFilter, uniqueOptions, inDateRange } from '../../components/kit';
 
 export default function DispatchListPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [dispatches, setDispatches] = useState([]);
   const [search, setSearch] = useState('');
+  const [flt, setFlt] = useState({});
   const [error, setError] = useState('');
 
   const dbVersion = useDbVersion();
@@ -30,18 +31,20 @@ export default function DispatchListPage() {
     load();
   }, [dbVersion]);
 
-  const filtered = dispatches.filter(d => 
+  const searched = dispatches.filter(d => 
     d.dispatch_no.toLowerCase().includes(search.toLowerCase()) || 
     d.mill_name.toLowerCase().includes(search.toLowerCase()) ||
     (d.qualities || '').toLowerCase().includes(search.toLowerCase())
   );
 
+  const filtered = searched.filter(d => (!flt.mill_id || String(d.mill_id) === flt.mill_id) && (!flt.quality || (d.qualities || '').split(',').includes(flt.quality)) && inDateRange(d.date, flt));
   const paged = usePaged(filtered, 50);
   if (loading || error) return <LoadState loading={loading} error={error} />;
 
   return (
     <div className="space-y-6">
       <PageHeader title="Mill Challans (grey sent to mills)" description="Send grey fabric from godown to mills for dyeing.">
+        <ListFilter values={flt} onChange={setFlt} fields={[{ key: 'mill_id', label: 'Mill', options: uniqueOptions(dispatches, (x) => x.mill_id, (x) => x.mill_name) }, { key: 'quality', label: 'Quality', options: [...new Set(dispatches.flatMap((x) => (x.qualities || '').split(',').filter(Boolean)))].sort().map((q) => [q, q]) }]} />
         <SearchToggle value={search} onChange={setSearch} placeholder="Search dispatch no, mill, or quality..." />
         <Button onClick={() => navigate('/dispatch/new')}><Plus className="w-4 h-4 mr-2" /> New Mill Challan</Button>
       </PageHeader>

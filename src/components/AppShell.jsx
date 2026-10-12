@@ -1,9 +1,50 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { Home, Database, Scissors, Truck, ShoppingCart, Settings, Menu, X, CheckCircle, Store, Palette, MapPin, Boxes, TrendingDown, SearchCheck } from 'lucide-react';
-import { Modal } from './ui';
-import { resetDemo } from '../db/repo';
+import { Modal, Button, Input, Select } from './ui';
+import { resetDemo, getDeadStockDays, setDeadStockDays } from '../db/repo';
 import { mode, exportBackup } from '../db/client';
+
+const DEAD_PRESETS = [
+  { label: '1 day', days: 1 }, { label: '1 week', days: 7 }, { label: '1 month', days: 30 },
+  { label: '3 months', days: 90 }, { label: '6 months', days: 180 }, { label: '1 year', days: 365 },
+];
+const UNITS = { days: 1, weeks: 7, months: 30, years: 365 };
+
+/** Settings block: after how long without movement finished goods count as dead stock. */
+function DeadStockSetting() {
+  const [days, setDays] = useState(null);
+  const [amount, setAmount] = useState('');
+  const [unit, setUnit] = useState('days');
+  const [error, setError] = useState('');
+  useEffect(() => { getDeadStockDays().then(setDays).catch((e) => setError(e.message)); }, []);
+  const save = async (d) => {
+    try { setError(''); setDays(await setDeadStockDays(d)); } catch (e) { setError(e.message); }
+  };
+  const preset = DEAD_PRESETS.find((p) => p.days === days);
+  return (
+    <div className="p-4 border border-slate-200 rounded-lg space-y-3">
+      <div>
+        <div className="font-semibold text-slate-900">Dead stock</div>
+        <div className="text-sm text-slate-600">Finished goods with no movement for <strong className="text-slate-900">{days ?? '…'} {days === 1 ? 'day' : 'days'}</strong>{preset ? ` (${preset.label})` : ''} or more</div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {DEAD_PRESETS.map((p) => (
+          <button key={p.days} type="button" onClick={() => save(p.days)}
+            className={`h-10 px-3 rounded-md border text-sm font-medium ${days === p.days ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}>{p.label}</button>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input type="number" min="1" className="w-24" placeholder="Custom" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <Select className="w-32" value={unit} onChange={(e) => setUnit(e.target.value)}>
+          {Object.keys(UNITS).map((u) => <option key={u} value={u}>{u}</option>)}
+        </Select>
+        <Button type="button" variant="outline" disabled={!amount} onClick={() => { save(Math.round(Number(amount) * UNITS[unit])); setAmount(''); }}>Set</Button>
+      </div>
+      {error && <div className="text-sm text-red-600">{error}</div>}
+    </div>
+  );
+}
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: Home },
@@ -24,6 +65,12 @@ export function AppShell() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsError, setSettingsError] = useState('');
+  // other screens can open the settings (e.g. the dead-stock rule on the Inventory page)
+  useEffect(() => {
+    const open = () => setSettingsOpen(true);
+    window.addEventListener('vinee:open-settings', open);
+    return () => window.removeEventListener('vinee:open-settings', open);
+  }, []);
 
   const handleBackup = async () => {
     try {
@@ -140,6 +187,7 @@ export function AppShell() {
 
       <Modal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="System Settings">
         <div className="space-y-4">
+          <DeadStockSetting />
           <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
             <div>
               <div className="font-medium text-slate-900">Storage Mode</div>

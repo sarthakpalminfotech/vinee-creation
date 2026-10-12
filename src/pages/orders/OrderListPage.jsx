@@ -6,13 +6,14 @@ import { Plus, ShoppingCart } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
 import { Qty } from '../../components/kit';
-import { SearchToggle } from '../../components/kit';
+import { SearchToggle, ListFilter, uniqueOptions, inDateRange } from '../../components/kit';
 
 export default function OrderListPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
   const [search, setSearch] = useState('');
+  const [flt, setFlt] = useState({});
   const [error, setError] = useState('');
 
   const dbVersion = useDbVersion();
@@ -30,11 +31,13 @@ export default function OrderListPage() {
     load();
   }, [dbVersion]);
 
-  const filtered = orders.filter(o => 
+  const searched = orders.filter(o => 
     o.order_no.toLowerCase().includes(search.toLowerCase()) || 
     o.customer_name.toLowerCase().includes(search.toLowerCase()) ||
     o.nick_name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const filtered = searched.filter(o => (!flt.customer_id || String(o.customer_id) === flt.customer_id) && (!flt.quality_id || String(o.quality_id) === flt.quality_id) && (!flt.status || o.status === flt.status) && inDateRange(o.date, flt));
 
   const getStatusBadge = (status) => {
     if (status === 'DONE') return <Badge variant="success">Completed</Badge>;
@@ -47,6 +50,7 @@ export default function OrderListPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Customer Orders" description="Manage sales orders and allocate ready takas.">
+        <ListFilter values={flt} onChange={setFlt} fields={[{ key: 'customer_id', label: 'Customer', options: uniqueOptions(orders, (x) => x.customer_id, (x) => x.customer_name) }, { key: 'quality_id', label: 'Quality', options: uniqueOptions(orders, (x) => x.quality_id, (x) => x.nick_name) }, { key: 'status', label: 'Status', options: [['OPEN', 'Open'], ['DONE', 'Completed']] }]} />
         <SearchToggle value={search} onChange={setSearch} placeholder="Search order no, customer, or quality..." />
         <Button onClick={() => navigate('/orders/new')}><Plus className="w-4 h-4 mr-2" /> New Order</Button>
       </PageHeader>

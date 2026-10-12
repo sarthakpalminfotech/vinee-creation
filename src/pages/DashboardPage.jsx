@@ -81,38 +81,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="p-6 lg:col-span-2">
-          <h3 className="text-lg font-semibold text-slate-900 mb-6">Recent Activity</h3>
-          <div className="space-y-4">
-            {activity.map((act, i) => (
-              <div key={i} className="flex gap-4 items-start p-3 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors" onClick={() => navigate(act.to)}>
-                <div className={`p-2 rounded-full ${
-                  act.kind === 'receipt' ? 'bg-sky-50 text-sky-600' : 
-                  act.kind === 'dispatch' ? 'bg-indigo-50 text-indigo-600' :
-                  act.kind === 'program' ? 'bg-violet-50 text-violet-600' :
-                  act.kind === 'finished' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
-                }`}>
-                  {act.kind === 'receipt' && <Package className="w-4 h-4" />}
-                  {act.kind === 'dispatch' && <Truck className="w-4 h-4" />}
-                  {act.kind === 'program' && <Scissors className="w-4 h-4" />}
-                  {act.kind === 'finished' && <CheckCircle className="w-4 h-4" />}
-                  {act.kind === 'order' && <ShoppingCart className="w-4 h-4" />}
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <p className="font-medium text-slate-900 text-sm">{act.title}</p>
-                    <span className="text-xs text-slate-400">{new Date(act.date).toLocaleDateString()}</span>
-                  </div>
-                  <p className="text-sm text-slate-500">{act.sub}</p>
-                </div>
-              </div>
-            ))}
-            {activity.length === 0 && <p className="text-center text-slate-500 py-4">No recent activity</p>}
-          </div>
-        </Card>
-
-        <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">Pipeline Breakdown</h3>
             <div className="space-y-3 text-sm">
@@ -170,8 +139,40 @@ export default function DashboardPage() {
               </div>
             )}
           </Card>
-        </div>
       </div>
+
+      {/* recent activity comes last */}
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold text-slate-900 mb-6">Recent Activity</h3>
+          <div className="space-y-4">
+            {activity.map((act, i) => (
+              <div key={i} className="flex gap-4 items-start p-3 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors" onClick={() => navigate(act.to)}>
+                <div className={`p-2 rounded-full ${
+                  act.kind === 'receipt' ? 'bg-sky-50 text-sky-600' : 
+                  act.kind === 'dispatch' ? 'bg-indigo-50 text-indigo-600' :
+                  act.kind === 'program' ? 'bg-violet-50 text-violet-600' :
+                  act.kind === 'finished' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
+                }`}>
+                  {act.kind === 'receipt' && <Package className="w-4 h-4" />}
+                  {act.kind === 'dispatch' && <Truck className="w-4 h-4" />}
+                  {act.kind === 'program' && <Scissors className="w-4 h-4" />}
+                  {act.kind === 'finished' && <CheckCircle className="w-4 h-4" />}
+                  {act.kind === 'order' && <ShoppingCart className="w-4 h-4" />}
+                </div>
+                <div className="flex-1">
+                  <div className="flex justify-between items-start">
+                    <p className="font-medium text-slate-900 text-sm">{act.title}</p>
+                    <span className="text-xs text-slate-400">{new Date(act.date).toLocaleDateString()}</span>
+                  </div>
+                  <p className="text-sm text-slate-500">{act.sub}</p>
+                </div>
+              </div>
+            ))}
+            {activity.length === 0 && <p className="text-center text-slate-500 py-4">No recent activity</p>}
+          </div>
+        </Card>
+
+
     </div>
   );
 }
