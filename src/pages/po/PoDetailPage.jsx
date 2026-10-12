@@ -118,7 +118,7 @@ export default function PoDetailPage() {
                   }
                 </Td>
                 <Td className="text-right font-medium">{r.taka_count}</Td>
-                <Td className="text-right">{fmtM(r.total_m)}</Td>
+                <Td className="text-right font-semibold text-slate-900">{fmtM(r.total_m)}</Td>
                 <Td className="text-right"><ExternalLink className="w-4 h-4 text-slate-400 inline" /></Td>
               </tr>
             ))}

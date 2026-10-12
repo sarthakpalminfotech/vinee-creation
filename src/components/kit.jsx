@@ -25,9 +25,9 @@ export function Qty({ takas, meters, variant = 'block', tone = 'slate', classNam
   const color = TONES[tone] || TONES.slate;
   if (variant === 'cell') {
     return (
-      <div className={`text-right leading-tight tabular-nums ${className}`}>
-        {takas != null && <div className={`font-semibold ${color}`}>{fmtInt(takas)} <span className="text-[11px] font-medium text-slate-400">taka</span></div>}
-        {meters != null && <div className="text-xs text-slate-500">{fmtM(meters)} <span className="text-[11px] text-slate-400">m</span></div>}
+      <div className={`text-right leading-snug tabular-nums ${className}`}>
+        {takas != null && <div className={`text-sm font-semibold ${color}`}>{fmtInt(takas)} <span className="text-xs font-medium text-slate-400">taka</span></div>}
+        {meters != null && <div className={`text-sm font-semibold ${color}`}>{fmtM(meters)} <span className="text-xs font-medium text-slate-400">m</span></div>}
       </div>
     );
   }

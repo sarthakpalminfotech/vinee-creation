@@ -193,7 +193,7 @@ export default function ReceiveProgramPage() {
                       </div>
                     </Td>
                     <Td className="font-medium text-slate-900">{r.taka_no}</Td>
-                    <Td className="text-right text-slate-500">{r.grey_meter}</Td>
+                    <Td className="text-right font-semibold text-slate-900">{fmtM(r.grey_meter)}</Td>
                     <Td className="text-right">
                       <Input type="number" step="0.01" className="w-24 ml-auto text-right h-10" value={r.mill_grey_meter} onChange={e => updateRow(r.id, 'mill_grey_meter', e.target.value)} />
                     </Td>

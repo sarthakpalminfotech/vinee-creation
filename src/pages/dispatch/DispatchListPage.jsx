@@ -63,16 +63,16 @@ export default function DispatchListPage() {
           <tbody>
             {paged.rows.map(d => (
               <tr key={d.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => navigate(`/dispatch/${d.id}`)}>
-                <Td className="font-medium text-slate-900">
+                <Td className="font-semibold text-slate-900">
                   <div className="flex items-center gap-2">
                     <Truck className="w-4 h-4 text-slate-400" />
                     {d.dispatch_no}
                   </div>
                 </Td>
                 <Td>{fmtDate(d.date)}</Td>
-                <Td className="font-medium">{d.mill_name}</Td>
+                <Td className="font-medium text-slate-900">{d.mill_name}</Td>
                 <Td>
-                  <div className="max-w-[200px] truncate text-slate-600" title={d.qualities}>{d.qualities || '-'}</div>
+                  <div className="max-w-[200px] truncate font-medium text-slate-900" title={d.qualities}>{d.qualities || '-'}</div>
                 </Td>
                 <Td><Qty variant="cell" takas={d.taka_count} meters={d.total_m} /></Td>
               </tr>

@@ -141,7 +141,7 @@ export default function FoldingPage() {
                   </div>
                 </Td>
                 <Td className="font-medium">{r.label}</Td>
-                <Td className="text-right text-slate-500">{r.finished_meter}</Td>
+                <Td className="text-right font-semibold text-slate-900">{fmtM(r.finished_meter)}</Td>
                 <Td className="text-right">
                   <Input 
                     type="number" step="0.01" 

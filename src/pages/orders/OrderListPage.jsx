@@ -71,7 +71,7 @@ export default function OrderListPage() {
           <tbody>
             {paged.rows.map(o => (
               <tr key={o.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => navigate(`/orders/${o.id}`)}>
-                <Td className="font-medium text-slate-900">
+                <Td className="font-semibold text-slate-900">
                   <div className="flex items-center gap-2">
                     <ShoppingCart className="w-4 h-4 text-slate-400" />
                     {o.order_no}

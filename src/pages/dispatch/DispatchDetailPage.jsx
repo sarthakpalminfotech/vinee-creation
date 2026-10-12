@@ -115,7 +115,7 @@ export default function DispatchDetailPage() {
                   <Td className="text-slate-500">{idx + 1}</Td>
                   <Td className="font-medium text-slate-900">{t.challan_no}/{t.taka_no}</Td>
                   <Td>{t.nick_name}</Td>
-                  <Td className="text-right">{fmtM(t.grey_meter)} m</Td>
+                  <Td className="text-right font-semibold text-slate-900">{fmtM(t.grey_meter)} m</Td>
                 </tr>
               ))}
               <tr className="bg-slate-50 font-bold print:bg-white print:border-t-2 print:border-slate-900">

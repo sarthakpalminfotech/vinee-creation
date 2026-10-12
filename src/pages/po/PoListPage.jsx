@@ -66,27 +66,27 @@ export default function PoListPage() {
           <tbody>
             {paged.rows.map(p => (
               <tr key={p.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => navigate(`/po/${p.id}`)}>
-                <Td className="font-medium text-slate-900">
+                <Td className="font-semibold text-slate-900">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-slate-400" />
                     {p.po_no}
                   </div>
                 </Td>
                 <Td>{fmtDate(p.po_date)}</Td>
-                <Td>{p.group_name}</Td>
+                <Td className="font-medium text-slate-900">{p.group_name}</Td>
                 <Td>
-                  <div>{p.original_name}</div>
+                  <div className="font-medium text-slate-900">{p.original_name}</div>
                   <div className="text-xs text-slate-500">{p.nick_name}</div>
                 </Td>
                 <Td className="text-right">
-                  <div>{fmtM(p.meters)} m</div>
+                  <div className="font-semibold text-slate-900">{fmtM(p.meters)} <span className="text-xs font-medium text-slate-400">m</span></div>
                   <div className="text-xs text-slate-500">@ ₹{p.rate}</div>
                 </Td>
                 <Td>
                   <div className="w-32">
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-500">{fmtM(p.received_m)} m</span>
-                      <span className="font-medium">{Math.round(p.pct)}%</span>
+                      <span className="font-medium text-slate-700">{fmtM(p.received_m)} m</span>
+                      <span className="font-semibold text-slate-900">{Math.round(p.pct)}%</span>
                     </div>
                     {p.shortfall_pct != null && p.shortfall !== 0 && <div className="text-[11px] text-amber-600 mt-1">{p.shortfall > 0 ? 'short' : 'excess'} {fmtM(Math.abs(p.shortfall))} m ({fmtPct(Math.abs(p.shortfall_pct))})</div>}
                     <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">

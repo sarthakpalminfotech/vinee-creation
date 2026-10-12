@@ -120,7 +120,7 @@ export default function ProgramDetailPage() {
                   <Td className="font-bold text-slate-900 text-lg print:text-2xl">{l.shade_no}</Td>
                   <Td className="text-slate-600 font-medium">{l.shade_name || '-'}</Td>
                   <Td className="text-right font-bold text-lg print:text-2xl">{l.taka_count}</Td>
-                  <Td className="text-right print:text-xl">{fmtM(l.grey_m)}</Td>
+                  <Td className="text-right font-semibold text-slate-900 print:text-xl">{fmtM(l.grey_m)}</Td>
                   <Td className="text-right print:hidden">
                     <span className={`font-medium ${l.received >= l.taka_count ? 'text-emerald-600' : 'text-slate-500'}`}>
                       {l.received} / {l.taka_count} <span className="text-slate-400">· {l.taka_count - l.received} pending</span>

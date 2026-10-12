@@ -74,15 +74,15 @@ export default function ProgramListPage() {
               const pct = Math.min(100, (p.received_takas / p.total_takas) * 100) || 0;
               return (
                 <tr key={p.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => navigate(`/programs/${p.id}`)}>
-                  <Td className="font-medium text-slate-900">
+                  <Td className="font-semibold text-slate-900">
                     <div className="flex items-center gap-2">
                       <Scissors className="w-4 h-4 text-slate-400" />
                       {p.program_no}
                     </div>
                   </Td>
                   <Td>{fmtDate(p.date)}</Td>
-                  <Td className="font-medium">{p.mill_name}</Td>
-                  <Td>{p.nick_name}</Td>
+                  <Td className="font-medium text-slate-900">{p.mill_name}</Td>
+                  <Td className="font-medium text-slate-900">{p.nick_name}</Td>
                   <Td>
                     <div className="flex -space-x-1">
                       {p.lines.slice(0, 5).map(l => (
@@ -96,7 +96,7 @@ export default function ProgramListPage() {
                     <div className="w-32">
                       <div className="flex justify-between items-center mb-1">
                         {getStatusBadge(p.status)}
-                        <span className="text-xs font-medium text-slate-500">{p.received_takas}/{p.total_takas}</span>
+                        <span className="text-xs font-semibold text-slate-700">{p.received_takas}/{p.total_takas}</span>
                       </div>
                       <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                         <div 

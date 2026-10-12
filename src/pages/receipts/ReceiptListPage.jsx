@@ -65,7 +65,7 @@ export default function ReceiptListPage() {
           <tbody>
             {paged.rows.map(r => (
               <tr key={r.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => navigate(`/receipts/${r.id}`)}>
-                <Td className="font-medium text-slate-900">
+                <Td className="font-semibold text-slate-900">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-slate-400" />
                     {r.challan_no}
@@ -73,10 +73,10 @@ export default function ReceiptListPage() {
                 </Td>
                 <Td>{fmtDate(r.date)}</Td>
                 <Td>
-                  <div>{r.po_no}</div>
+                  <div className="font-medium text-slate-900">{r.po_no}</div>
                   <div className="text-xs text-slate-500">{r.original_name}</div>
                 </Td>
-                <Td>{r.weaver_name}</Td>
+                <Td className="font-medium text-slate-900">{r.weaver_name}</Td>
                 <Td>
                   {r.destination === 'MILL' ? 
                     <span className="inline-flex items-center text-sky-600 text-xs font-medium bg-sky-50 px-2 py-1 rounded"><ShieldCheck className="w-3.5 h-3.5 mr-1" /> {r.mill_name || 'Mill'}</span> : 

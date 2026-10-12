@@ -193,7 +193,7 @@ export default function CreateDispatchPage() {
                       </Td>
                       <Td className="font-medium text-slate-900">{t.challan_no}/{t.taka_no}</Td>
                       <Td>{t.nick_name}</Td>
-                      <Td>{fmtM(t.grey_meter)} m</Td>
+                      <Td className="font-semibold text-slate-900">{fmtM(t.grey_meter)} m</Td>
                       <Td>{t.branch_name || '—'}</Td>
                       <Td>
                         {t.location_id ? <span className="text-slate-600 text-sm">{repo.locLabel(t.shop, t.rack)}</span> : <span className="text-amber-600 text-xs font-medium">Unassigned</span>}

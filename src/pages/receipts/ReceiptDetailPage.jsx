@@ -84,7 +84,7 @@ export default function ReceiptDetailPage() {
               {receipt.takas?.map(t => (
                 <tr key={t.id} className="hover:bg-slate-50">
                   <Td className="font-medium text-slate-900">{t.taka_no}</Td>
-                  <Td>{t.grey_meter} m</Td>
+                  <Td className="font-semibold text-slate-900">{fmtM(t.grey_meter)} m</Td>
                   <Td>
                     {t.weaverLoss === null ? '-' : (
                       <span className={`text-xs font-medium ${t.weaverLoss > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
