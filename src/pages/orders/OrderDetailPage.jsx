@@ -6,6 +6,8 @@ import { ArrowLeft, ShoppingCart, CheckCircle, PackageSearch, Pencil } from 'luc
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
 import { Qty } from '../../components/kit';
+import { DetailList, Progress } from '../../components/kit';
+import { fmtDate } from '../../lib/format';
 
 export default function OrderDetailPage() {
   const { id } = useParams();
@@ -70,57 +72,25 @@ export default function OrderDetailPage() {
       </PageHeader>
 
       <Alert tone={msg.tone}>{msg.text}</Alert>
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        <Card className="p-6 xl:col-span-3">
-          <div className="flex justify-between items-start mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center">
-                <ShoppingCart className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">{order.customer_name}</h3>
-                <p className="text-slate-500 text-sm">{order.customer_city}</p>
-              </div>
-            </div>
-            {order.status === 'DONE' ? <Badge variant="success">Completed</Badge> : <Badge variant="primary">Open</Badge>}
+      <Card className="p-6 space-y-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-slate-900">{order.customer_name}</h2>
+            <div className="text-sm text-slate-500">{order.customer_city}</div>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div className="bg-slate-50 p-4 rounded-xl">
-              <div className="text-sm text-slate-500 mb-1">Quality</div>
-              <div className="text-lg font-bold text-slate-900">{order.nick_name}</div>
-            </div>
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Ordered</div>
-              <Qty takas={order.total_takas} meters={order.total_meters} />
-            </div>
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Allocated</div>
-              <Qty tone="emerald" takas={order.allocated} meters={order.allocated_m} />
-            </div>
-          </div>
-          
-          {order.notes && (
-            <div className="mt-4 text-sm bg-slate-100 text-slate-700 p-4 rounded-xl border border-slate-200">
-              <strong className="block mb-1">Notes</strong>
-              {order.notes}
-            </div>
-          )}
-        </Card>
-
-        <Card className="p-6 flex flex-col items-center justify-center text-center">
-          <div className="relative w-32 h-32 flex items-center justify-center mb-4">
-            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-              <path className="text-slate-100" strokeWidth="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              <path className="text-emerald-500 transition-all duration-1000 ease-out" strokeDasharray={`${pct || 0}, 100`} strokeWidth="3" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-bold text-slate-900">{Math.round(pct) || 0}%</span>
-              <span className="text-xs text-slate-500">allocated</span>
-            </div>
-          </div>
-        </Card>
-      </div>
+          {order.status === 'DONE' ? <Badge variant="success">Completed</Badge> : <Badge variant="primary">Open</Badge>}
+        </div>
+        <DetailList items={[
+          { label: 'Order date', value: fmtDate(order.date) },
+          { label: 'Quality', value: order.nick_name },
+          { label: 'Ordered takas', value: order.total_takas > 0 ? order.total_takas : null },
+          { label: 'Ordered meters', value: order.total_meters > 0 ? `${fmtM(order.total_meters)} m` : null },
+          { label: 'Allocated takas', value: order.allocated },
+          { label: 'Allocated meters', value: `${fmtM(order.allocated_m)} m` },
+          { label: 'Notes', value: order.notes, wide: true },
+        ]} />
+        <Progress label="Allocated" pct={pct} tone="emerald" />
+      </Card>
 
       <Card>
         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-xl">

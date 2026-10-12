@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Search, Plus, X, ChevronRight, ChevronLeft, AlertCircle, Edit, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -8,7 +8,7 @@ const cn = (...a) => twMerge(clsx(a));
 import { createPortal } from 'react-dom';
 
 export function Button({ variant = 'primary', size = 'md', className = '', children, ...props }) {
-  const base = "inline-flex items-center justify-center font-medium transition-colors rounded-lg disabled:opacity-50 disabled:pointer-events-none";
+  const base = "inline-flex items-center justify-center font-medium transition-colors rounded-md disabled:opacity-50 disabled:pointer-events-none";
   const variants = {
     primary: "bg-primary-600 text-white hover:bg-primary-700 shadow-sm",
     secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200",
@@ -30,7 +30,7 @@ export function Button({ variant = 'primary', size = 'md', className = '', child
 
 export function Card({ className = '', children, ...props }) {
   return (
-    <div className={`bg-white rounded-xl shadow-soft border border-slate-200 overflow-hidden ${className}`} {...props}>
+    <div className={`bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden ${className}`} {...props}>
       {children}
     </div>
   );
@@ -50,7 +50,7 @@ export const Input = React.forwardRef(({ className = '', error, ...props }, ref)
   return (
     <input
       ref={ref}
-      className={cn('h-11 w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent', error ? 'border-red-300' : 'border-slate-300', className)}
+      className={cn('h-11 w-full rounded-md border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent', error ? 'border-red-300' : 'border-slate-300', className)}
       {...props}
     />
   );
@@ -63,7 +63,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
       <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" onClick={onClose} />
-      <div className={`relative bg-white rounded-2xl shadow-xl w-full ${maxWidth} animate-in fade-in zoom-in-95 duration-200`}>
+      <div className={`relative bg-white rounded-xl shadow-xl w-full ${maxWidth} animate-in fade-in zoom-in-95 duration-200`}>
         <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-100">
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors">
@@ -99,26 +99,40 @@ export function Badge({ children, variant = 'gray', className = '' }) {
   );
 }
 
-export function PageHeader({ title, description, action, children }) {
+/** Where an opened search bar is rendered: a full-width row just below the toolbar that owns the search icon. */
+export const SearchSlotContext = createContext(null);
+
+export function SearchArea({ children, className = '' }) {
+  const [slot, setSlot] = useState(null);
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
-        {description && <p className="text-sm text-slate-500 mt-1">{description}</p>}
+    <SearchSlotContext.Provider value={slot}>
+      <div className={className}>
+        {children}
+        <div ref={setSlot} />
       </div>
-      {(action || children) && (
-        <div className="flex items-center gap-3">
-          {children}
-          {action}
-        </div>
-      )}
-    </div>
+    </SearchSlotContext.Provider>
+  );
+}
+
+export function PageHeader({ title, action, children }) {
+  return (
+    <SearchArea className="mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
+        {(action || children) && (
+          <div className="flex flex-wrap items-center gap-3">
+            {children}
+            {action}
+          </div>
+        )}
+      </div>
+    </SearchArea>
   );
 }
 
 export function Empty({ icon: Icon = AlertCircle, title, description, action }) {
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
+    <div className="flex flex-col items-center justify-center py-12 px-4 text-center border-2 border-dashed border-slate-200 rounded-lg bg-slate-50">
       <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm mb-4">
         <Icon className="w-6 h-6 text-slate-400" />
       </div>

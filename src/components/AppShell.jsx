@@ -140,7 +140,7 @@ export function AppShell() {
 
       <Modal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="System Settings">
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
             <div>
               <div className="font-medium text-slate-900">Storage Mode</div>
               <div className="text-sm text-slate-500">{mode === 'turso' ? 'Remote database (Turso)' : 'Local IndexedDB (this browser only)'}</div>
@@ -154,13 +154,13 @@ export function AppShell() {
             <>
               <button
                 onClick={handleBackup}
-                className="w-full py-2.5 px-4 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-200 transition-colors"
+                className="w-full py-2.5 px-4 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
               >
                 Download database backup
               </button>
               <button
                 onClick={handleReset}
-                className="w-full py-2.5 px-4 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors"
+                className="w-full py-2.5 px-4 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
               >
                 Reset Demo Data
               </button>

@@ -4,6 +4,8 @@ import { fmtM } from '../../lib/format';
 import { Search, Scissors } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
+import { DetailList, SearchToggle } from '../../components/kit';
+import { SearchArea } from '../../components/ui';
 
 export default function FoldingPage() {
   const [loading, setLoading] = useState(true);
@@ -94,18 +96,16 @@ export default function FoldingPage() {
       </PageHeader>
 
       <Card>
-        <div className="p-5 border-b border-slate-100 flex flex-wrap gap-4 justify-between items-center bg-slate-50/50 rounded-t-xl">
-          <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-            <Input className="pl-9 bg-white" placeholder="Search takas, quality..." value={search} onChange={e => setSearch(e.target.value)} />
+        <SearchArea className="p-5 border-b border-slate-100">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <DetailList className="flex-1" items={[
+              { label: 'Pending to fold', value: takas.length },
+              { label: 'Selected', value: selectedRows.length },
+              { label: 'Fold shrinkage', value: <span className={shrinkage > 5 ? 'text-red-600' : ''}>{fmtM(totalFin - totalFold)} m ({shrinkage}%)</span> },
+            ]} />
+            <SearchToggle value={search} onChange={setSearch} placeholder="Search takas, quality..." />
           </div>
-          <div className="flex gap-6 text-sm font-medium items-center">
-            <div>Pending to fold: <span className="text-slate-900">{takas.length}</span></div>
-            <div className="w-px h-4 bg-slate-300"></div>
-            <div>Selected: <span className="text-primary-600">{selectedRows.length}</span></div>
-            <div>Fold shrinkage: <span className={shrinkage > 5 ? 'text-red-500' : 'text-slate-600'}>{fmtM(totalFin - totalFold)} m ({shrinkage}%)</span></div>
-          </div>
-        </div>
+        </SearchArea>
 
         <Table>
           <thead>

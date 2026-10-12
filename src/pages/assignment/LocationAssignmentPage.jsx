@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { PageHeader, Card, Button, Table, Th, Td, Select, Input, Empty, Modal, Alert, LoadState, Pager, usePaged, useAction, Field } from '../../components/ui';
+import { PageHeader, Card, Button, Table, Th, Td, Select, Input, Empty, Modal, Alert, LoadState, Pager, usePaged, useAction, Field, SearchArea } from '../../components/ui';
 import { Qty, Chip, SearchToggle, FilterButton, SectionTitle } from '../../components/kit';
 import { MapPin, CheckCircle, History } from 'lucide-react';
 import { fmtM, fmtInt } from '../../lib/format';
@@ -110,11 +110,11 @@ export default function LocationAssignmentPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Rack / Godown" description="Grey cloth at our place: see stock by branch and rack, then assign takas to racks in bulk." />
+      <PageHeader title="Rack / Godown" />
 
       {/* 1 · stock by branch and rack */}
       <section>
-        <SectionTitle title="Grey stock by branch and rack" hint="Tap a rack to see which takas are on it" />
+        <SectionTitle title="Grey stock by branch and rack" />
         {byBranch.length === 0 ? <Card className="p-5 text-sm text-slate-500">No grey stock in our godown.</Card> : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             {byBranch.map((b) => (
@@ -168,9 +168,10 @@ export default function LocationAssignmentPage() {
 
       {/* 3 · the takas */}
       <section>
-        <SectionTitle title="Takas in our godown" hint={`${fmtInt(filtered.length)} shown · tip: click one taka, then shift-click another to select the whole range`} />
+        <SectionTitle title="Takas in our godown" />
         <Card>
-          <div className="p-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
+          <SearchArea className="p-4 border-b border-slate-100">
+          <div className="flex flex-wrap items-center gap-3">
             <Select className="w-44" value={branchFilter} onChange={(e) => { setBranchFilter(e.target.value); setRackFilter(''); }}>
               <option value="">All branches</option>
               {branches.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
@@ -202,6 +203,7 @@ export default function LocationAssignmentPage() {
               </FilterButton>
             </div>
           </div>
+          </SearchArea>
           <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/60 flex flex-wrap items-center gap-2">
             <Input className="w-24" inputMode="numeric" placeholder="First N" value={firstN} onChange={(e) => setFirstN(e.target.value)} aria-label="First N takas" />
             <Button variant="outline" onClick={selectFirst} disabled={!firstN}>Select N</Button>

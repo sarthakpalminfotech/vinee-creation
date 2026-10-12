@@ -146,7 +146,7 @@ export default function CreateProgramPage() {
             </div>
             
             {(formData.mill_id && formData.quality_id) && (
-              <div className={`mt-6 p-4 rounded-xl border flex items-center justify-between ${
+              <div className={`mt-6 p-4 rounded-lg border flex items-center justify-between ${
                 availableTakas.length > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
               }`}>
                 <div className="flex items-center gap-3">
@@ -180,17 +180,17 @@ export default function CreateProgramPage() {
             </div>
 
             {!formData.chart_id || !formData.quality_id ? (
-              <div className="py-8 text-center text-slate-500 border-2 border-dashed border-slate-200 rounded-xl">
+              <div className="py-8 text-center text-slate-500 border-2 border-dashed border-slate-200 rounded-lg">
                 Select the quality and a shade chart above to add lines.
               </div>
             ) : availableItems.length === 0 ? (
-              <div className="py-8 text-center text-slate-500 border-2 border-dashed border-amber-200 bg-amber-50 rounded-xl">
+              <div className="py-8 text-center text-slate-500 border-2 border-dashed border-amber-200 bg-amber-50 rounded-lg">
                 No item codes exist for this quality in this chart. Create them in <Link to="/masters/items" className="text-primary-600 underline">Masters → Items</Link> (there is a one-click generator).
               </div>
             ) : (
               <div className="space-y-3">
                 {lines.map((l, idx) => (
-                  <div key={l.id} className="flex gap-4 items-start p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div key={l.id} className="flex gap-4 items-start p-3 bg-slate-50 border border-slate-200 rounded-lg">
                     <div className="w-8 pt-2 text-center font-medium text-slate-400">{idx + 1}</div>
                     <div className="flex-1">
                       <Field label="Item code">

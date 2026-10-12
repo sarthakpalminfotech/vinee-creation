@@ -30,7 +30,7 @@ export default function DashboardPage() {
           <h3 className="text-3xl font-bold text-slate-900 mt-2 tabular-nums">{value}{unit && <span className="ml-1.5 text-sm font-medium text-slate-400">{unit}</span>}</h3>
           {sub && <p className="text-sm text-slate-500 mt-1.5 tabular-nums">{sub}</p>}
         </div>
-        <div className={`p-3 rounded-xl ${colorClass}`}>
+        <div className={`p-3 rounded-lg ${colorClass}`}>
           <Icon className="w-5 h-5" />
         </div>
       </div>

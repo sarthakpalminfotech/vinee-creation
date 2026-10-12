@@ -5,6 +5,7 @@ import { fmtM, fmtPct, fmtDate } from '../../lib/format';
 import { ArrowLeft, CheckCircle, Package, MapPin, ExternalLink, ShieldCheck, Pencil } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
+import { DetailList, Progress } from '../../components/kit';
 
 export default function PoDetailPage() {
   const { id } = useParams();
@@ -65,74 +66,28 @@ export default function PoDetailPage() {
       </PageHeader>
 
       <Alert>{error}</Alert>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="p-6 md:col-span-2 space-y-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="text-xl font-bold text-slate-900">{po.group_name}</h3>
-              <p className="text-slate-500">{po.original_name} <span className="text-xs">(nickname: {po.nick_name})</span></p>
-            </div>
-            <Badge variant={meta.variant}>{meta.label}</Badge>
+      <Card className="p-6 space-y-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-slate-900">{po.group_name}</h2>
+            <div className="text-sm text-slate-500">{po.original_name} ({po.nick_name})</div>
           </div>
-          
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <div className="text-xs text-slate-500 mb-1">Ordered Meters</div>
-              <div className="font-semibold text-slate-900">{po.meters.toLocaleString()}</div>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <div className="text-xs text-slate-500 mb-1">Rate (₹)</div>
-              <div className="font-semibold text-slate-900">{po.rate} /m</div>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <div className="text-xs text-slate-500 mb-1">Taka Length</div>
-              <div className="font-semibold text-slate-900">{po.taka_length}m</div>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <div className="text-xs text-slate-500 mb-1">Expected Takas</div>
-              <div className="font-semibold text-slate-900">~{po.expected_takas}</div>
-            </div>
-          </div>
-          
-          {po.notes && (
-            <div className="text-sm bg-amber-50 text-amber-800 p-3 rounded-lg border border-amber-100">
-              <strong className="block mb-1">Notes</strong>
-              {po.notes}
-            </div>
-          )}
-        </Card>
-
-        <Card className="p-6 flex flex-col items-center justify-center text-center">
-          <div className="relative w-32 h-32 flex items-center justify-center mb-4">
-            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-              <path className="text-slate-100" strokeWidth="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              <path className={`${progressColor} transition-all duration-1000 ease-out`} strokeDasharray={`${Math.min(100, po.pct)}, 100`} strokeWidth="3" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-bold text-slate-900">{Math.round(po.pct)}%</span>
-              <span className="text-xs text-slate-500">received</span>
-            </div>
-          </div>
-          
-          <div className="w-full space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Received</span>
-              <span className="font-medium text-slate-900">{fmtM(po.received_m)} m</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Pending</span>
-              <span className="font-medium text-slate-900">{fmtM(po.pending_m)} m</span>
-            </div>
-            {isCompleted && (
-              <div className={`pt-2 border-t border-slate-100 font-medium ${po.shortfall > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                <div className="flex justify-between"><span>Ordered</span><span>{fmtM(po.meters)} m</span></div>
-                <div className="flex justify-between"><span>Received</span><span>{fmtM(po.received_m)} m</span></div>
-                <div className="flex justify-between"><span>{po.shortfall >= 0 ? 'Weaver shrinkage' : 'Excess received'}</span><span>{fmtM(Math.abs(po.shortfall))} m ({fmtPct(Math.abs(po.shortfall_pct))})</span></div>
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
+          <Badge variant={meta.variant}>{meta.label}</Badge>
+        </div>
+        <DetailList items={[
+          { label: 'PO date', value: fmtDate(po.po_date) },
+          { label: 'Due date', value: po.due_date ? fmtDate(po.due_date) : null },
+          { label: 'Ordered meters', value: `${fmtM(po.meters)} m` },
+          { label: 'Received meters', value: `${fmtM(po.received_m)} m` },
+          { label: 'Pending meters', value: `${fmtM(po.pending_m)} m` },
+          { label: 'Rate', value: `₹${po.rate} / m` },
+          { label: 'Taka length', value: `${po.taka_length} m` },
+          { label: 'Expected takas', value: `~${po.expected_takas}` },
+          { label: po.shortfall >= 0 ? 'Weaver shrinkage' : 'Excess received', value: isCompleted ? `${fmtM(Math.abs(po.shortfall))} m (${fmtPct(Math.abs(po.shortfall_pct))})` : null },
+          { label: 'Notes', value: po.notes, wide: true },
+        ]} />
+        <Progress label="Received" pct={po.pct} tone={isCompleted ? 'emerald' : 'primary'} />
+      </Card>
 
       <Card>
         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-xl">

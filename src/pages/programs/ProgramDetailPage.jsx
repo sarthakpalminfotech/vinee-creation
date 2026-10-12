@@ -5,6 +5,7 @@ import { ArrowLeft, Printer, Scissors, Palette, CheckCircle } from 'lucide-react
 import { fmtM, fmtPct, fmtDate } from '../../lib/format';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
+import { DetailList, Progress } from '../../components/kit';
 
 export default function ProgramDetailPage() {
   const { id } = useParams();
@@ -63,68 +64,25 @@ export default function ProgramDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 print:hidden">
-        <Card className="p-6 md:col-span-3">
-          <div className="flex justify-between items-start mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-violet-100 text-violet-600 rounded-xl flex items-center justify-center">
-                <Scissors className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">{program.mill_name}</h3>
-                <p className="text-slate-500 text-sm">{program.nick_name}</p>
-              </div>
-            </div>
-            {program.status === 'DONE' ? <Badge variant="success">Done</Badge> : (program.status === 'PARTIAL' ? <Badge variant="warning">Partial</Badge> : <Badge variant="primary">In Dyeing</Badge>)}
+      <Card className="p-6 space-y-6 print:hidden">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-slate-900">{program.mill_name}</h2>
+            <div className="text-sm text-slate-500">{program.nick_name}</div>
           </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-slate-50 p-4 rounded-xl">
-              <div className="text-sm text-slate-500 mb-1">Total Takas Sent</div>
-              <div className="text-2xl font-bold text-slate-900">{program.total_takas}</div>
-            </div>
-            <div className="bg-slate-50 p-4 rounded-xl">
-              <div className="text-sm text-slate-500 mb-1">Grey Meters</div>
-              <div className="text-2xl font-bold text-slate-900">{program.grey_m.toLocaleString()} m</div>
-            </div>
-            <div className="col-span-2 bg-slate-50 p-4 rounded-xl">
-              <div className="text-sm text-slate-500 mb-1">Shade Chart</div>
-              <div className="font-medium text-slate-900 flex items-center gap-2"><Palette className="w-4 h-4 text-slate-400" /> {program.chart_name}</div>
-            </div>
-          </div>
-          
-          {program.notes && (
-            <div className="mt-4 text-sm bg-slate-100 text-slate-700 p-4 rounded-xl border border-slate-200">
-              <strong className="block mb-1">Notes</strong>
-              {program.notes}
-            </div>
-          )}
-        </Card>
-
-        <Card className="p-6 flex flex-col items-center justify-center text-center">
-          <div className="relative w-32 h-32 flex items-center justify-center mb-4">
-            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-              <path className="text-slate-100" strokeWidth="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              <path className="text-emerald-500 transition-all duration-1000 ease-out" strokeDasharray={`${Math.min(100, (program.received_takas / program.total_takas) * 100 || 0)}, 100`} strokeWidth="3" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-bold text-slate-900">{Math.round((program.received_takas / program.total_takas) * 100) || 0}%</span>
-              <span className="text-xs text-slate-500">received</span>
-            </div>
-          </div>
-          
-          <div className="w-full space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Finished Takas</span>
-              <span className="font-medium text-slate-900">{program.received_takas}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Pending Takas</span>
-              <span className="font-medium text-slate-900">{program.total_takas - program.received_takas}</span>
-            </div>
-          </div>
-        </Card>
-      </div>
+          {program.status === 'DONE' ? <Badge variant="success">Done</Badge> : (program.status === 'PARTIAL' ? <Badge variant="warning">Partial</Badge> : <Badge variant="primary">In Dyeing</Badge>)}
+        </div>
+        <DetailList items={[
+          { label: 'Issued on', value: fmtDate(program.date) },
+          { label: 'Shade chart', value: program.chart_name },
+          { label: 'Takas sent', value: program.total_takas },
+          { label: 'Grey meters', value: `${fmtM(program.grey_m)} m` },
+          { label: 'Finished takas', value: program.received_takas },
+          { label: 'Pending takas', value: program.total_takas - program.received_takas },
+          { label: 'Notes', value: program.notes, wide: true },
+        ]} />
+        <Progress label="Received" pct={(program.received_takas / program.total_takas) * 100 || 0} tone="emerald" />
+      </Card>
 
       <div className="hidden print:flex mb-6 text-lg">
         <div className="w-1/2">

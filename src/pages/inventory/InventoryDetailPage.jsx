@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { PageHeader, Card, Select, Input, Table, Th, Td, Empty, LoadState, Pager, usePaged, Field } from '../../components/ui';
+import { PageHeader, Card, Select, Input, Table, Th, Td, Empty, LoadState, Pager, usePaged, Field, SearchArea } from '../../components/ui';
 import { Qty, StatTile, Chip, Swatch, SectionTitle, SearchToggle, FilterButton } from '../../components/kit';
 import { ArrowLeft, Boxes } from 'lucide-react';
 import { fmtInt, fmtM } from '../../lib/format';
@@ -99,7 +99,7 @@ export default function InventoryDetailPage() {
     <div className="space-y-8">
       <div>
         <Link to={`/inventory?view=${view}`} className="inline-flex items-center text-sm text-slate-500 hover:text-slate-800 mb-3"><ArrowLeft className="w-4 h-4 mr-1" /> Inventory</Link>
-        <PageHeader title={head.nick_name} description={`${head.original_name} · ${repo.INVENTORY_VIEWS[view].label}`} />
+        <PageHeader title={`${head.nick_name} · ${repo.INVENTORY_VIEWS[view].label}`} />
       </div>
 
       {/* 1 · totals for this quality at this stage */}
@@ -127,14 +127,14 @@ export default function InventoryDetailPage() {
       {/* 2 · colours (dyeing / finished only) */}
       {coloured && (
         <section>
-          <SectionTitle title={`Colours in stock (${colours.length})`} hint="Tap a colour to list only its takas below"
+          <SectionTitle title={`Colours in stock (${colours.length})`}
             right={f.shade_id && <button className="text-xs text-primary-600 hover:underline" onClick={() => set('shade_id', '')}>Show all colours</button>} />
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {colours.map((c) => {
               const on = String(f.shade_id) === String(c.id);
               return (
                 <button key={c.id} type="button" onClick={() => set('shade_id', on ? '' : String(c.id))}
-                  className={`text-left rounded-xl border bg-white p-4 transition hover:shadow-md ${on ? 'border-primary-500 ring-2 ring-primary-100' : 'border-slate-200 hover:border-slate-300'}`}>
+                  className={`text-left rounded-lg border bg-white p-4 transition hover:shadow-md ${on ? 'border-primary-500 ring-2 ring-primary-100' : 'border-slate-200 hover:border-slate-300'}`}>
                   <div className="flex items-center gap-3">
                     <Swatch hex={c.hex} size="lg" />
                     <div className="min-w-0">
@@ -161,10 +161,11 @@ export default function InventoryDetailPage() {
 
       {/* 3 · filters + every taka */}
       <section>
-        <SectionTitle title="Takas" hint={`${fmtInt(shownTotal.takas)} of ${fmtInt(total.takas)} shown`} />
+        <SectionTitle title={`Takas (${fmtInt(shownTotal.takas)} of ${fmtInt(total.takas)})`} />
         <Card>
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-3">
-            <div className="text-sm text-slate-500">{filterCount > 0 ? `${filterCount} filter${filterCount > 1 ? 's' : ''} active` : 'Showing everything'}</div>
+          <SearchArea className="p-4 border-b border-slate-100">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm text-slate-500">{filterCount > 0 ? `${filterCount} filter${filterCount > 1 ? 's' : ''} active` : 'No filters'}</div>
             <div className="flex items-center gap-2">
               <SearchToggle value={f.search} onChange={(v) => set('search', v)} placeholder="Challan / taka / party…" />
               <FilterButton count={filterCount - (f.search ? 1 : 0) - (f.shade_id ? 1 : 0)} title="Filter takas" onClear={() => setF((p) => ({ group_id: '', weaver_id: '', branch_id: '', location_id: '', mill_id: '', shade_id: p.shade_id, search: p.search }))}>
@@ -201,6 +202,7 @@ export default function InventoryDetailPage() {
               </FilterButton>
             </div>
           </div>
+          </SearchArea>
 
           {shown.length === 0 ? (
             <div className="p-6"><Empty icon={Boxes} title="No takas match" description="Change or clear the filters." /></div>

@@ -146,11 +146,11 @@ export default function CreateOrderPage() {
             {locked && <Alert tone="info" className="mb-3">Stock has already been allocated to this order, so its lines cannot be changed. You can still edit the number, date, customer and notes.</Alert>}
 
             {!formData.quality_id ? (
-              <div className="py-8 text-center text-slate-500 border-2 border-dashed border-slate-200 rounded-xl">
+              <div className="py-8 text-center text-slate-500 border-2 border-dashed border-slate-200 rounded-lg">
                 Select a quality to add lines.
               </div>
             ) : qualityItems.length === 0 ? (
-              <div className="py-8 text-center text-slate-500 border-2 border-dashed border-amber-200 bg-amber-50 rounded-xl">
+              <div className="py-8 text-center text-slate-500 border-2 border-dashed border-amber-200 bg-amber-50 rounded-lg">
                 This quality has no coloured item codes yet. Create them in <Link to="/masters/items" className="text-primary-600 underline">Masters → Items</Link>.
               </div>
             ) : (
@@ -163,7 +163,7 @@ export default function CreateOrderPage() {
                   const canFulfill = stock && (reqT > 0 || reqM > 0) && reqT <= stock.takas && reqM <= stock.m;
 
                   return (
-                    <div key={l.id} className="flex flex-col sm:flex-row gap-4 items-start p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div key={l.id} className="flex flex-col sm:flex-row gap-4 items-start p-4 bg-slate-50 border border-slate-200 rounded-lg">
                       <div className="flex-1 w-full">
                         <Field label="Item code">
                           <div className="relative">

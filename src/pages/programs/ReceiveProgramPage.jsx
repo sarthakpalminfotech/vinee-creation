@@ -4,6 +4,7 @@ import { PageHeader, Card, Button, Input, Field, Table, Th, Td, Drawer, Alert, u
 import { fmtM } from '../../lib/format';
 import { ArrowLeft, CheckCircle, ClipboardPaste } from 'lucide-react';
 import * as repo from '../../db/repo';
+import { DetailList } from '../../components/kit';
 
 export default function ReceiveProgramPage() {
   const { id } = useParams();
@@ -117,7 +118,7 @@ export default function ReceiveProgramPage() {
         </Card>
 
         <Card className="p-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Pending per shade</div>
+          <div className="text-xs font-bold text-slate-500 mb-2">Pending per shade</div>
           <div className="flex flex-wrap gap-3 text-sm">
             {program.lines.map(l => (
               <span key={l.id} className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
@@ -129,17 +130,19 @@ export default function ReceiveProgramPage() {
         </Card>
 
         <Card>
-          <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-xl">
-            <h3 className="font-semibold text-slate-900">Pending Takas in Dyeing</h3>
-            <div className="flex items-center gap-4 text-sm font-medium">
+          <div className="p-5 border-b border-slate-100 space-y-4">
+            <div className="flex justify-between items-center gap-3">
+              <h3 className="font-semibold text-slate-900">Pending takas in dyeing</h3>
               <Button type="button" variant={pasteMode ? "primary" : "outline"} size="sm" onClick={() => setPasteMode(!pasteMode)}>
                 <ClipboardPaste className="w-4 h-4 mr-2" /> Bulk Paste
               </Button>
-              <div className="w-px h-4 bg-slate-200"></div>
-              <div>Selected: <span className="text-primary-600">{rows.filter(r => r.selected).length}</span></div>
-              <div>Grey {fmtM(totalGrey)} → Finished {fmtM(totalFin)} m</div>
-              <div>Shrinkage: <span className={shrinkage > 10 ? 'text-red-500' : 'text-slate-600'}>{fmtM(totalGrey - totalFin)} m ({shrinkage}%)</span></div>
             </div>
+            <DetailList items={[
+              { label: 'Selected takas', value: rows.filter(r => r.selected).length },
+              { label: 'Grey meters', value: `${fmtM(totalGrey)} m` },
+              { label: 'Finished meters', value: `${fmtM(totalFin)} m` },
+              { label: 'Shrinkage', value: <span className={shrinkage > 10 ? 'text-red-600' : ''}>{fmtM(totalGrey - totalFin)} m ({shrinkage}%)</span> },
+            ]} />
           </div>
           
           {pasteMode && (

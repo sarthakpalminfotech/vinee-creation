@@ -34,7 +34,7 @@ export function AvailabilityPanel({ data, needs = {} }) {
         const need = Number(needs[s.shade_id]) || 0;
         const short = need - s.finished.takas;
         return (
-          <div key={s.shade_id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+          <div key={s.shade_id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
             <div className="flex items-center gap-2">
               <span className="w-4 h-4 rounded-full border border-slate-200" style={{ backgroundColor: s.hex }} />
               <span className="font-semibold text-slate-900">Shade {s.shade_no}{s.shade_name ? ` · ${s.shade_name}` : ''}</span>
@@ -55,12 +55,12 @@ export function AvailabilityPanel({ data, needs = {} }) {
       {data.shades.length === 0 && <div className="text-xs text-slate-400">Add shade lines to see finished goods and dyeing for each shade.</div>}
 
       <div className="grid grid-cols-1 gap-2">
-        <div className="rounded-xl border border-slate-200 p-3 bg-white">
+        <div className="rounded-lg border border-slate-200 p-3 bg-white">
           <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Grey at mill (not yet in a program)</div>
           <Qty className="mt-2" tone="sky" takas={data.greyAtMill.takas} meters={data.greyAtMill.m} />
           <ul className="mt-2 text-xs text-slate-600 space-y-0.5">{data.greyAtMill.byMill.map((m) => <li key={m.label} className="flex justify-between gap-2"><span>{m.label}</span><span className="tabular-nums">{m.takas} taka · {fmtM(m.m)} m</span></li>)}</ul>
         </div>
-        <div className="rounded-xl border border-slate-200 p-3 bg-white">
+        <div className="rounded-lg border border-slate-200 p-3 bg-white">
           <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Grey at our place</div>
           <Qty className="mt-2" takas={data.greyAtPlace.takas} meters={data.greyAtPlace.m} />
           <ul className="mt-2 text-xs text-slate-600 space-y-0.5">{data.greyAtPlace.byLocation.map((m) => <li key={m.label} className="flex justify-between gap-2"><span>{m.label}</span><span className="tabular-nums">{m.takas} taka · {fmtM(m.m)} m</span></li>)}</ul>

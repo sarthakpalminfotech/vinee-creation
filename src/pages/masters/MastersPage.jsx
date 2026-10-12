@@ -448,7 +448,7 @@ export default function MastersPage() {
         <div className="space-y-6">
           <div className="flex gap-4 overflow-x-auto pb-2">
             {charts.map(c => (
-              <div key={c.id} className="flex-shrink-0 flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200">
+              <div key={c.id} className="flex-shrink-0 flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200">
                 <span className="font-medium text-slate-900">{c.name}</span>
                 <button onClick={() => handleOpenModal('shade_charts', c)} className="text-slate-400 hover:text-primary-600"><Edit className="w-3.5 h-3.5" /></button>
                 <button onClick={() => handleDelete('shade_charts', c.id)} className="text-slate-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>

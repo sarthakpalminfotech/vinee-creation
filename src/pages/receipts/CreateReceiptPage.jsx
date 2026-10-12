@@ -326,7 +326,7 @@ export default function CreateReceiptPage() {
                 <div className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
                   <div className="flex gap-4 items-end">
                     <Field label="First taka no" className="w-32"><Input value={startNo} onChange={(e) => setStartNo(e.target.value)} /></Field>
-                    <p className="text-xs text-slate-500 flex-1">One value per line = meters (numbered from the first taka no). Two columns = taka no, meters.</p>
+                    
                   </div>
                   <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" rows={4}
                     value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder={'96.5\n102.58\n94.69\n103.5'} />
@@ -358,7 +358,6 @@ export default function CreateReceiptPage() {
                 </table>
               </div>
               {locked && <Alert tone="info" className="mt-3">Some takas of this challan were already sent to a mill or put in a program, so only the challan details can change — not the takas.</Alert>}
-              <p className="text-xs text-slate-400 mt-2">Enter moves to the next row (and adds one at the end). Meters accept up to 2 decimals.</p>
             </Card>
           </div>
 

@@ -138,7 +138,7 @@ export default function ShrinkagePage() {
           <SummaryTable rows={rep[tab]} showPo={tab === 'byPo'} label={{ byPo: 'PO', byParty: 'Party', byQuality: 'Quality', byMill: 'Mill', byProgram: 'Program' }[tab]} />
         )}
       </Card>
-      <p className="text-xs text-slate-500">Total loss = start − folded (or finished while not yet folded). Start is the weaver challan meter, or the mill's grey meter for direct-to-mill takas. Weaver shrinkage at PO level = ordered − received.</p>
+      
     </div>
   );
 }

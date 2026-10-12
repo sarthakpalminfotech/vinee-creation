@@ -1,9 +1,10 @@
 // Presentation kit: one consistent way to show takas + meters, stat tiles and chips.
 // Pure UI (no data access) so screens can adopt it — or drop it — independently.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, SlidersHorizontal } from 'lucide-react';
 import { fmtInt, fmtM } from '../lib/format';
-import { Button, Modal } from './ui';
+import { Button, Modal, SearchSlotContext } from './ui';
 
 const TONES = {
   slate: 'text-slate-900',
@@ -40,17 +41,17 @@ export function Qty({ takas, meters, variant = 'block', tone = 'slate', classNam
     );
   }
   return (
-    <div className={`flex divide-x divide-slate-200 rounded-lg bg-slate-50 border border-slate-200 max-w-full ${className}`}>
+    <div className={`flex flex-wrap gap-x-8 gap-y-2 ${className}`}>
       {takas != null && (
-        <div className="px-3 py-2 min-w-0 shrink-0">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Takas</div>
-          <div className={`text-base font-bold leading-tight tabular-nums whitespace-nowrap ${color}`}>{fmtInt(takas)}</div>
+        <div className="min-w-0">
+          <div className="text-xs font-bold text-slate-500">Takas</div>
+          <div className={`mt-0.5 text-lg font-semibold leading-tight tabular-nums whitespace-nowrap ${color}`}>{fmtInt(takas)}</div>
         </div>
       )}
       {meters != null && (
-        <div className="px-3 py-2 min-w-0 flex-1">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Meters</div>
-          <div className={`text-base font-bold leading-tight tabular-nums whitespace-nowrap ${color}`}>{fmtM(meters)}</div>
+        <div className="min-w-0">
+          <div className="text-xs font-bold text-slate-500">Meters</div>
+          <div className={`mt-0.5 text-lg font-semibold leading-tight tabular-nums whitespace-nowrap ${color}`}>{fmtM(meters)}</div>
         </div>
       )}
     </div>
@@ -64,7 +65,7 @@ export function StatTile({ label, value, unit, sub, tone = 'slate', active = fal
     <Tag
       type={onClick ? 'button' : undefined}
       onClick={onClick}
-      className={`relative text-left rounded-xl border bg-white p-4 transition ${onClick ? 'cursor-pointer hover:shadow-md hover:border-slate-300' : ''} ${active ? 'border-primary-500 ring-2 ring-primary-100 shadow-sm' : 'border-slate-200'} ${className}`}
+      className={`relative text-left rounded-lg border bg-white p-4 transition ${onClick ? 'cursor-pointer hover:shadow-md hover:border-slate-300' : ''} ${active ? 'border-primary-500 ring-2 ring-primary-100 shadow-sm' : 'border-slate-200'} ${className}`}
     >
       {accent && <span className={`absolute left-0 top-3 bottom-3 w-1 rounded-r ${accent}`} />}
       <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</div>
@@ -96,35 +97,69 @@ export function Swatch({ hex, size = 'md' }) {
 }
 
 /** Section heading used above groups of cards. */
-export function SectionTitle({ title, hint, right }) {
+export function SectionTitle({ title, right }) {
   return (
-    <div className="flex items-end justify-between gap-3 mb-3">
-      <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">{title}</h2>
-        {hint && <p className="text-xs text-slate-400 mt-0.5">{hint}</p>}
-      </div>
+    <div className="flex items-center justify-between gap-3 mb-3">
+      <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
       {right}
     </div>
   );
 }
 
-/** A search icon that slides open into a search box (and closes again). Keeps toolbars uncluttered. */
+/**
+ * Plain label/value list for detail screens: bold label, value underneath, no boxes.
+ * items: [{ label, value, wide? }]; empty values are skipped. Cells never get narrower than 11rem so nothing breaks.
+ */
+export function DetailList({ items, className = '' }) {
+  const shown = items.filter((i) => i && i.value !== null && i.value !== undefined && i.value !== '' && i.value !== false);
+  return (
+    <dl className={`grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-x-8 gap-y-5 ${className}`}>
+      {shown.map((i) => (
+        <div key={i.label} className={`min-w-0 ${i.wide ? 'col-span-full' : ''}`}>
+          <dt className="text-xs font-bold text-slate-500 whitespace-nowrap">{i.label}</dt>
+          <dd className="mt-1 text-[15px] font-medium text-slate-900 break-words tabular-nums">{i.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** Thin progress bar with a label and percentage. */
+export function Progress({ label, pct, tone = 'primary' }) {
+  const color = { primary: 'bg-primary-600', emerald: 'bg-emerald-500', amber: 'bg-amber-500' }[tone] || 'bg-primary-600';
+  return (
+    <div>
+      <div className="flex justify-between text-xs font-bold text-slate-500 mb-1.5"><span>{label}</span><span className="tabular-nums text-slate-700">{Math.round(pct)}%</span></div>
+      <div className="h-2 rounded-full bg-slate-100 overflow-hidden"><div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} /></div>
+    </div>
+  );
+}
+
+/** A search icon; when opened, a full-width search row appears just below the toolbar (a new row, nothing shifts sideways). */
 export function SearchToggle({ value, onChange, placeholder = 'Search…', className = '' }) {
+  const slot = useContext(SearchSlotContext);
   const [open, setOpen] = useState(!!value);
   const ref = useRef(null);
   useEffect(() => { if (open) ref.current?.focus(); }, [open]);
-  const toggle = () => { if (open && value) onChange(''); setOpen(!open); };
-  return (
-    <div className={`flex items-center ${className}`}>
-      <div className={`overflow-hidden transition-all duration-300 ease-out ${open ? 'w-44 sm:w-64 opacity-100 mr-2' : 'w-0 opacity-0'}`}>
-        <input ref={ref} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={placeholder} tabIndex={open ? 0 : -1}
-          className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+  const toggle = () => { if (open) onChange(''); setOpen(!open); };
+  const bar = open && (
+    <div className="mt-3 w-full animate-in fade-in slide-in-from-top-1 duration-200">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <input ref={ref} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={placeholder}
+          className="h-11 w-full rounded-md border border-slate-300 bg-white pl-10 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+        <button type="button" onClick={toggle} aria-label="Close search" className="absolute right-1.5 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-700"><X className="w-4 h-4" /></button>
       </div>
-      <button type="button" onClick={toggle} aria-label={open ? 'Close search' : 'Search'}
-        className={`relative h-11 w-11 shrink-0 grid place-items-center rounded-lg border bg-white text-slate-600 hover:bg-slate-50 ${value && !open ? 'border-primary-400 text-primary-600' : 'border-slate-300'}`}>
-        {open ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
-      </button>
     </div>
+  );
+  return (
+    <>
+      <button type="button" onClick={toggle} aria-label={open ? 'Close search' : 'Search'}
+        className={`h-11 w-11 shrink-0 grid place-items-center rounded-md border bg-white hover:bg-slate-50 ${open || value ? 'border-primary-400 text-primary-700' : 'border-slate-300 text-slate-600'} ${className}`}>
+        <Search className="w-5 h-5" />
+      </button>
+      {bar && (slot ? createPortal(bar, slot) : <div className="basis-full w-full order-last">{bar}</div>)}
+    </>
   );
 }
 

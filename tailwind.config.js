@@ -13,7 +13,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['"DM Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: 'hsl(var(--border))',
@@ -22,8 +22,8 @@ export default {
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         primary: {
-          50: '#fdf2f8', 100: '#fce7f3', 200: '#fbcfe8', 300: '#f9a8d4', 400: '#f472b6',
-          500: '#ec4899', 600: '#db2777', 700: '#be185d', 800: '#9d174d', 900: '#831843', 950: '#500724',
+          50: '#faf3f5', 100: '#f4e3e8', 200: '#e9c6d0', 300: '#da9bad', 400: '#c46c86',
+          500: '#a8415f', 600: '#8c2d4a', 700: '#73243c', 800: '#5f2033', 900: '#4f1d2d', 950: '#2e0f19',
           DEFAULT: 'hsl(var(--primary))',
           hover: 'hsl(var(--primary-hover))',
           active: 'hsl(var(--primary-active))',

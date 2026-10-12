@@ -6,6 +6,7 @@ import { fmtM, fmtDate } from '../../lib/format';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
 import { Qty, StatTile } from '../../components/kit';
+import { DetailList, Progress } from '../../components/kit';
 
 // Mill-facing document: the quality is ALWAYS shown by its nickname (never the weaver's original name).
 export default function DispatchDetailPage() {
@@ -67,23 +68,23 @@ export default function DispatchDetailPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 print:hidden">
-          <Card className="p-6 md:col-span-3">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 bg-sky-100 text-sky-600 rounded-xl flex items-center justify-center"><ShieldCheck className="w-6 h-6" /></div>
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">{dispatch.mill_name}</h3>
-                <p className="text-slate-500 text-sm">Destination mill</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <StatTile label="Total takas" tone="sky" value={dispatch.taka_count} />
-              <StatTile label="Total meters" tone="sky" value={fmtM(dispatch.total_m)} unit="m" />
-              <div className="col-span-2 bg-slate-50 p-4 rounded-xl"><div className="text-sm text-slate-500 mb-1">Quality</div><div className="font-medium text-slate-900">{dispatch.qualities || '-'}</div></div>
-            </div>
-            {dispatch.notes && <div className="mt-4 text-sm bg-slate-100 text-slate-700 p-4 rounded-xl border border-slate-200"><strong className="block mb-1">Notes</strong>{dispatch.notes}</div>}
-          </Card>
+        <Card className="p-6 space-y-6 print:hidden">
+          <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-slate-900">{dispatch.mill_name}</h2>
+            
+          </div>
+          
         </div>
+          <DetailList items={[
+            { label: 'Challan no', value: dispatch.dispatch_no },
+            { label: 'Date', value: fmtDate(dispatch.date) },
+            { label: 'Quality', value: dispatch.qualities },
+            { label: 'Takas', value: dispatch.taka_count },
+            { label: 'Total meters', value: `${fmtM(dispatch.total_m)} m` },
+            { label: 'Notes', value: dispatch.notes, wide: true },
+          ]} />
+        </Card>
 
         {/* picking list: where the supervisor takes each taka from */}
         <Card className={`print:shadow-none print:border-none print:rounded-none ${hidePick}`}>

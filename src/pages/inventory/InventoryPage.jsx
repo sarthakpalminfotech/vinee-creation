@@ -59,7 +59,7 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Inventory" description="Everything we hold, stage by stage. Pick a stage, then open a quality for the full details." />
+      <PageHeader title="Inventory" />
 
       {counts && (counts.reconciled
         ? <Alert tone="success"><span className="inline-flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Stock is reconciled — the four stages add up to all {fmtInt(counts.sum)} active takas ({fmtInt(counts.sold)} sold are not stock).</span></Alert>
@@ -78,9 +78,9 @@ export default function InventoryPage() {
         </div>
       </section>
 
-      {/* 2 · grey in our godowns, branch wise */}
-      <section>
-        <SectionTitle title="Grey at our place — branch wise" hint="Tap a branch to see only its stock below" />
+      {/* 2 · grey in our godowns, branch wise (only meaningful for this stage) */}
+      {view === 'godown' && <section>
+        <SectionTitle title="Grey at our place — branch wise" />
         {byBranch.length === 0 ? (
           <Card className="p-5 text-sm text-slate-500">No grey in our godowns right now.</Card>
         ) : (
@@ -89,7 +89,7 @@ export default function InventoryPage() {
               const on = view === 'godown' && String(branchId) === String(b.id);
               return (
                 <button key={b.id ?? 'none'} type="button" onClick={() => go({ view: 'godown', branch: on ? '' : String(b.id ?? '') })}
-                  className={`text-left rounded-xl border bg-white p-4 transition hover:shadow-md ${on ? 'border-primary-500 ring-2 ring-primary-100' : 'border-slate-200 hover:border-slate-300'}`}>
+                  className={`text-left rounded-lg border bg-white p-4 transition hover:shadow-md ${on ? 'border-primary-500 ring-2 ring-primary-100' : 'border-slate-200 hover:border-slate-300'}`}>
                   <div className="flex items-center gap-2 text-slate-800 font-semibold"><MapPin className="w-4 h-4 text-slate-400" />{b.name}</div>
                   <Qty className="mt-3" takas={b.takas} meters={b.m} />
                   {b.unassigned > 0 && <div className="mt-2 text-xs text-amber-600">{fmtInt(b.unassigned)} taka without a rack</div>}
@@ -98,13 +98,12 @@ export default function InventoryPage() {
             })}
           </div>
         )}
-      </section>
+      </section>}
 
       {/* 3 · one card per quality for the chosen stage */}
       <section>
         <SectionTitle
           title={`${repo.INVENTORY_VIEWS[view].label} — by quality`}
-          hint={`${VIEW_META[view].hint}${branchName ? ` · ${branchName} only` : ''}`}
           right={branchName && <button className="text-xs text-primary-600 hover:underline" onClick={() => go({ view })}>Clear branch filter</button>} />
         {loading ? <div className="p-12 text-center text-slate-500">Loading...</div> : cards.length === 0 ? (
           <Empty icon={Boxes} title="No stock here" description="Nothing is held at this stage right now." />
@@ -112,7 +111,7 @@ export default function InventoryPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {cards.map((q) => (
               <Link key={q.id} to={`/inventory/${view}/${q.id}${branchId ? `?branch=${branchId}` : ''}`}
-                className="group rounded-xl border border-slate-200 bg-white p-5 hover:shadow-md hover:border-primary-300 transition">
+                className="group rounded-lg border border-slate-200 bg-white p-5 hover:shadow-md hover:border-primary-300 transition">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-lg font-bold text-slate-900 truncate">{q.nick}</div>
