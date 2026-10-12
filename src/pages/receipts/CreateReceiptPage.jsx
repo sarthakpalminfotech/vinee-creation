@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Select, Field, Th, Td, Drawer, Alert, useAction } from '../../components/ui';
 import { ArrowLeft, Save, Plus, Trash2, ClipboardPaste, AlertTriangle } from 'lucide-react';
 import * as repo from '../../db/repo';
+import { Qty } from '../../components/kit';
 
 const METER_RE = /^\d+(\.\d{1,2})?$/;
 let seq = 0;
@@ -364,10 +365,7 @@ export default function CreateReceiptPage() {
           <div className="space-y-6">
             <Card className="p-6 bg-slate-50 border-slate-200 lg:sticky lg:top-0">
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">Receipt Summary</h3>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div><div className="text-sm text-slate-500">Takas</div><div className="text-2xl font-bold text-slate-900" id="sum-takas">{filled}</div></div>
-                <div><div className="text-sm text-slate-500">Total meters</div><div className="text-2xl font-bold text-slate-900" id="sum-meters">{totalMeters.toFixed(2)}</div></div>
-              </div>
+              <Qty className="mb-4 bg-white" takas={filled} meters={totalMeters} />
               <div className="space-y-2 pt-4 border-t border-slate-200 text-sm">
                 <div className="flex justify-between"><span className="text-slate-500">Average</span><span className="font-medium">{filled ? (totalMeters / filled).toFixed(2) : '0.00'} m</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Min / Max</span><span className="font-medium">{minM.toFixed(2)} / {maxM.toFixed(2)} m</span></div>

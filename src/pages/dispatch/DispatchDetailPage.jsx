@@ -5,6 +5,7 @@ import { ArrowLeft, Printer, ShieldCheck, ClipboardList } from 'lucide-react';
 import { fmtM, fmtDate } from '../../lib/format';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
+import { Qty, StatTile } from '../../components/kit';
 
 // Mill-facing document: the quality is ALWAYS shown by its nickname (never the weaver's original name).
 export default function DispatchDetailPage() {
@@ -76,8 +77,8 @@ export default function DispatchDetailPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-50 p-4 rounded-xl"><div className="text-sm text-slate-500 mb-1">Total takas</div><div className="text-2xl font-bold text-slate-900">{dispatch.taka_count}</div></div>
-              <div className="bg-slate-50 p-4 rounded-xl"><div className="text-sm text-slate-500 mb-1">Total meters</div><div className="text-2xl font-bold text-slate-900">{fmtM(dispatch.total_m)} m</div></div>
+              <StatTile label="Total takas" tone="sky" value={dispatch.taka_count} />
+              <StatTile label="Total meters" tone="sky" value={fmtM(dispatch.total_m)} unit="m" />
               <div className="col-span-2 bg-slate-50 p-4 rounded-xl"><div className="text-sm text-slate-500 mb-1">Quality</div><div className="font-medium text-slate-900">{dispatch.qualities || '-'}</div></div>
             </div>
             {dispatch.notes && <div className="mt-4 text-sm bg-slate-100 text-slate-700 p-4 rounded-xl border border-slate-200"><strong className="block mb-1">Notes</strong>{dispatch.notes}</div>}
@@ -90,7 +91,7 @@ export default function DispatchDetailPage() {
           <div className="divide-y divide-slate-100">
             {pick.map((g) => (
               <div key={g.key} className="p-4 break-inside-avoid">
-                <div className="flex justify-between font-semibold text-slate-900"><span>{g.label}</span><span>{g.count} takas · {fmtM(g.meters)} m</span></div>
+                <div className="flex justify-between font-semibold text-slate-900"><span>{g.label}</span><Qty variant="inline" takas={g.count} meters={g.meters} /></div>
                 <div className="mt-2 flex flex-wrap gap-1.5 text-sm">
                   {g.takas.map((t) => <span key={t.id} className="px-2 py-0.5 bg-slate-100 rounded print:border print:border-slate-300 print:bg-white">{t.challan_no}/{t.taka_no} <span className="text-slate-500">({fmtM(t.grey_meter)})</span></span>)}
                 </div>

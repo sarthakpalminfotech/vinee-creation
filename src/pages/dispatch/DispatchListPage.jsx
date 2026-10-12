@@ -5,6 +5,7 @@ import { fmtM, fmtDate } from '../../lib/format';
 import { Plus, Search, ChevronRight, Truck } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
+import { Qty } from '../../components/kit';
 
 export default function DispatchListPage() {
   const navigate = useNavigate();
@@ -63,8 +64,7 @@ export default function DispatchListPage() {
               <Th>Date</Th>
               <Th>Mill</Th>
               <Th>Qualities Sent</Th>
-              <Th className="text-right">Takas</Th>
-              <Th className="text-right">Total Meters</Th>
+              <Th className="text-right">Quantity</Th>
               <Th></Th>
             </tr>
           </thead>
@@ -82,8 +82,7 @@ export default function DispatchListPage() {
                 <Td>
                   <div className="max-w-[200px] truncate text-slate-600" title={d.qualities}>{d.qualities || '-'}</div>
                 </Td>
-                <Td className="text-right font-medium">{d.taka_count}</Td>
-                <Td className="text-right">{fmtM(d.total_m)} m</Td>
+                <Td><Qty variant="cell" takas={d.taka_count} meters={d.total_m} /></Td>
                 <Td className="text-right">
                   <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-primary-600 inline-block" />
                 </Td>

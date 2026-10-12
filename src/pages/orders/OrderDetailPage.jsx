@@ -5,6 +5,7 @@ import { fmtM } from '../../lib/format';
 import { ArrowLeft, ShoppingCart, CheckCircle, PackageSearch, Pencil } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
+import { Qty } from '../../components/kit';
 
 export default function OrderDetailPage() {
   const { id } = useParams();
@@ -84,18 +85,18 @@ export default function OrderDetailPage() {
             {order.status === 'DONE' ? <Badge variant="success">Completed</Badge> : <Badge variant="primary">Open</Badge>}
           </div>
           
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-slate-50 p-4 rounded-xl">
               <div className="text-sm text-slate-500 mb-1">Quality</div>
               <div className="text-lg font-bold text-slate-900">{order.nick_name}</div>
             </div>
-            <div className="bg-slate-50 p-4 rounded-xl">
-              <div className="text-sm text-slate-500 mb-1">Ordered</div>
-              <div className="text-2xl font-bold text-slate-900">{order.total_takas > 0 ? `${order.total_takas} tk` : ''}{order.total_takas > 0 && order.total_meters > 0 ? ' · ' : ''}{order.total_meters > 0 ? `${fmtM(order.total_meters)} m` : ''}</div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Ordered</div>
+              <Qty takas={order.total_takas} meters={order.total_meters} />
             </div>
-            <div className="bg-slate-50 p-4 rounded-xl">
-              <div className="text-sm text-slate-500 mb-1">Allocated</div>
-              <div className="text-2xl font-bold text-slate-900 text-emerald-600">{order.allocated} tk · {fmtM(order.allocated_m)} m</div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Allocated</div>
+              <Qty tone="emerald" takas={order.allocated} meters={order.allocated_m} />
             </div>
           </div>
           
@@ -147,8 +148,8 @@ export default function OrderDetailPage() {
                   </Td>
                   <Td className="font-mono font-bold text-slate-900">{l.item_code || '—'}</Td>
                   <Td className="text-slate-600 font-medium">{l.shade_no}{l.shade_name ? ` · ${l.shade_name}` : ''}</Td>
-                  <Td className="text-right font-medium">{l.taka_count > 0 ? `${l.taka_count} tk` : ''}{l.taka_count > 0 && l.meters > 0 ? ' · ' : ''}{l.meters > 0 ? `${fmtM(l.meters)} m` : ''}</Td>
-                  <Td className="text-right font-medium text-emerald-600">{l.allocated} tk · {fmtM(l.allocated_m)} m</Td>
+                  <Td><Qty variant="cell" takas={l.taka_count > 0 ? l.taka_count : null} meters={l.meters > 0 ? l.meters : null} /></Td>
+                  <Td><Qty variant="cell" tone="emerald" takas={l.allocated} meters={l.allocated_m} /></Td>
                   <Td className="text-right">
                     {done ? <span className="text-xs font-bold text-emerald-500 uppercase">Fulfilled</span> : <span className="text-xs font-bold text-amber-500 uppercase">Pending</span>}
                   </Td>

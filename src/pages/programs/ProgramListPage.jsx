@@ -5,6 +5,7 @@ import { fmtM, fmtDate } from '../../lib/format';
 import { Plus, Search, ChevronRight, Scissors } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
+import { Qty } from '../../components/kit';
 
 export default function ProgramListPage() {
   const navigate = useNavigate();
@@ -70,7 +71,7 @@ export default function ProgramListPage() {
               <Th>Mill</Th>
               <Th>Quality</Th>
               <Th>Shades</Th>
-              <Th className="text-right">Takas</Th>
+              <Th className="text-right">Quantity</Th>
               <Th>Status</Th>
               <Th></Th>
             </tr>
@@ -97,10 +98,7 @@ export default function ProgramListPage() {
                       {p.lines.length > 5 && <div className="w-6 h-6 rounded-full bg-slate-100 border border-white flex items-center justify-center text-[10px] text-slate-600 font-medium">+{p.lines.length - 5}</div>}
                     </div>
                   </Td>
-                  <Td className="text-right">
-                    <div className="font-medium text-slate-900">{p.total_takas}</div>
-                    <div className="text-xs text-slate-500">{p.grey_m.toLocaleString()} m</div>
-                  </Td>
+                  <Td><Qty variant="cell" takas={p.total_takas} meters={p.grey_m} /></Td>
                   <Td>
                     <div className="w-32">
                       <div className="flex justify-between items-center mb-1">

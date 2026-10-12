@@ -5,6 +5,7 @@ import { fmtM, fmtDate } from '../../lib/format';
 import { Plus, Search, ChevronRight, ShoppingCart } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
+import { Qty } from '../../components/kit';
 
 export default function OrderListPage() {
   const navigate = useNavigate();
@@ -91,12 +92,8 @@ export default function OrderListPage() {
                 <Td>
                   <div className="font-medium text-slate-900">{o.nick_name}</div>
                 </Td>
-                <Td className="text-right font-medium">{o.total_takas > 0 ? `${o.total_takas} tk` : ''}{o.total_takas > 0 && o.total_meters > 0 ? ' · ' : ''}{o.total_meters > 0 ? `${fmtM(o.total_meters)} m` : ''}</Td>
-                <Td className="text-right">
-                  <span className={`font-medium ${o.lines.length > 0 && o.lines.every(repo.orderLineDone) ? 'text-emerald-600' : 'text-slate-600'}`}>
-                    {o.allocated} tk{o.total_meters > 0 ? ` · ${fmtM(o.allocated_m)} m` : ''}
-                  </span>
-                </Td>
+                <Td><Qty variant="cell" takas={o.total_takas > 0 ? o.total_takas : null} meters={o.total_meters > 0 ? o.total_meters : null} /></Td>
+                <Td><Qty variant="cell" tone={o.lines.length > 0 && o.lines.every(repo.orderLineDone) ? 'emerald' : 'slate'} takas={o.allocated} meters={o.allocated_m} /></Td>
                 <Td>{getStatusBadge(o.status)}</Td>
                 <Td className="text-right">
                   <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-primary-600 inline-block" />

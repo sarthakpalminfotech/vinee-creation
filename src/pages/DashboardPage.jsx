@@ -4,6 +4,8 @@ import { PageHeader, Card, Button, Table, Th, Td } from '../components/ui';
 import { Plus, TrendingUp, Package, Scissors, CheckCircle, Truck, ShoppingCart } from 'lucide-react';
 import * as repo from '../db/repo';
 import { useDbVersion } from '../lib/live';
+import { Qty } from '../components/kit';
+import { fmtM } from '../lib/format';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -20,13 +22,13 @@ export default function DashboardPage() {
 
   const { status, openPoCount, pendingPoM, wastage, openOrders, activity } = data;
   
-  const StatCard = ({ title, value, sub, icon: Icon, colorClass, link }) => (
+  const StatCard = ({ title, value, unit, sub, icon: Icon, colorClass, link }) => (
     <Card className="p-6 cursor-pointer hover:shadow-md transition-shadow group" onClick={() => link && navigate(link)}>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-slate-500">{title}</p>
-          <h3 className="text-2xl font-bold text-slate-900 mt-2">{value}</h3>
-          {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
+          <h3 className="text-3xl font-bold text-slate-900 mt-2 tabular-nums">{value}{unit && <span className="ml-1.5 text-sm font-medium text-slate-400">{unit}</span>}</h3>
+          {sub && <p className="text-sm text-slate-500 mt-1.5 tabular-nums">{sub}</p>}
         </div>
         <div className={`p-3 rounded-xl ${colorClass}`}>
           <Icon className="w-5 h-5" />
@@ -47,32 +49,32 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           title="Open POs" 
-          value={openPoCount} 
-          sub={`${pendingPoM.toLocaleString()} m pending`} 
+          value={openPoCount} unit="POs"
+          sub={<><b className="text-slate-700">{fmtM(pendingPoM)}</b> meters pending</>} 
           icon={TrendingUp} 
           colorClass="bg-blue-50 text-blue-600" 
           link="/po"
         />
         <StatCard 
           title="Godown Grey" 
-          value={status.GODOWN_GREY?.c || 0} 
-          sub={`${status.GODOWN_GREY?.m.toLocaleString() || 0} m`} 
+          value={status.GODOWN_GREY?.c || 0} unit="taka"
+          sub={<><b className="text-slate-700">{fmtM(status.GODOWN_GREY?.m || 0)}</b> meters</>} 
           icon={Package} 
           colorClass="bg-slate-100 text-slate-600" 
           link="/inventory?view=godown"
         />
         <StatCard 
           title="In Dyeing" 
-          value={status.IN_DYEING?.c || 0} 
-          sub={`${status.IN_DYEING?.m.toLocaleString() || 0} m`} 
+          value={status.IN_DYEING?.c || 0} unit="taka"
+          sub={<><b className="text-slate-700">{fmtM(status.IN_DYEING?.m || 0)}</b> meters</>} 
           icon={Scissors} 
           colorClass="bg-violet-50 text-violet-600" 
           link="/inventory?view=dyeing"
         />
         <StatCard 
           title="Folded (ready)" 
-          value={status.FOLDED?.c || 0} 
-          sub={`${status.FOLDED?.m.toLocaleString() || 0} m`} 
+          value={status.FOLDED?.c || 0} unit="taka"
+          sub={<><b className="text-slate-700">{fmtM(status.FOLDED?.m || 0)}</b> meters</>} 
           icon={CheckCircle} 
           colorClass="bg-emerald-50 text-emerald-600" 
           link="/inventory?view=finished"
@@ -128,7 +130,7 @@ export default function DashboardPage() {
                       <div className={`w-3 h-3 rounded-full ${stage.color}`}></div>
                       <span className="text-slate-600">{stage.label}</span>
                     </div>
-                    <span className="font-semibold text-slate-900">{count} takas</span>
+                    <Qty variant="cell" takas={count} meters={status[stage.s]?.m || 0} />
                   </div>
                 );
               })}

@@ -5,6 +5,7 @@ import { fmtM, fmtDate } from '../../lib/format';
 import { Plus, Search, ChevronRight, FileText, MapPin, ShieldCheck } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
+import { Qty } from '../../components/kit';
 
 export default function ReceiptListPage() {
   const navigate = useNavigate();
@@ -65,8 +66,7 @@ export default function ReceiptListPage() {
               <Th>PO & Quality</Th>
               <Th>Weaver Firm</Th>
               <Th>Destination</Th>
-              <Th className="text-right">Takas</Th>
-              <Th className="text-right">Total Meters</Th>
+              <Th className="text-right">Quantity</Th>
               <Th></Th>
             </tr>
           </thead>
@@ -91,8 +91,7 @@ export default function ReceiptListPage() {
                     <span className="inline-flex items-center text-slate-600 text-xs font-medium bg-slate-100 px-2 py-1 rounded"><MapPin className="w-3.5 h-3.5 mr-1" /> {r.branch_name || 'Godown'}</span>
                   }
                 </Td>
-                <Td className="text-right font-medium">{r.taka_count}</Td>
-                <Td className="text-right">{fmtM(r.total_m)} m</Td>
+                <Td><Qty variant="cell" takas={r.taka_count} meters={r.total_m} /></Td>
                 <Td className="text-right">
                   <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-primary-600 inline-block" />
                 </Td>

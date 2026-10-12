@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fmtM } from '../../lib/format';
+import { Qty } from '../../components/kit';
 import * as repo from '../../db/repo';
 
 /** Loads and shows stock for one quality (nickname) and the requested shades. needs: {shadeId: takasWanted} */
@@ -17,11 +18,11 @@ export function useAvailability(qualityId, shadeIds) {
   return { data, error };
 }
 
-const Stat = ({ label, value, sub, tone = 'text-slate-900' }) => (
+const Stat = ({ label, takas, m, tone = 'slate', sub }) => (
   <div className="bg-white p-2.5 rounded-lg border border-slate-100">
-    <div className="text-[11px] text-slate-500">{label}</div>
-    <div className={`font-semibold ${tone}`}>{value}</div>
-    {sub && <div className="text-[11px] text-slate-500">{sub}</div>}
+    <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">{label}</div>
+    <Qty tone={tone} takas={takas} meters={m} />
+    {sub && <div className="mt-1.5 text-[11px] text-slate-500">{sub}</div>}
   </div>
 );
 
@@ -40,12 +41,12 @@ export function AvailabilityPanel({ data, needs = {} }) {
               {need > 0 && <span className={`ml-auto text-xs font-medium ${short > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>Need {need}{short > 0 ? ` · short ${short}` : ' · covered'}</span>}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Stat label="Finished goods" value={`${s.finished.takas} tk`} sub={`${fmtM(s.finished.m)} m · ${s.folded.takas} folded, ${s.unfolded.takas} to fold`} tone="text-emerald-700" />
-              <Stat label="In dyeing" value={`${s.dyeing.takas} tk`} sub={`${fmtM(s.dyeing.m)} m`} tone="text-violet-700" />
+              <Stat label="Finished goods" takas={s.finished.takas} m={s.finished.m} sub={`${s.folded.takas} folded · ${s.unfolded.takas} still to fold`} tone="emerald" />
+              <Stat label="In dyeing" takas={s.dyeing.takas} m={s.dyeing.m} tone="violet" />
             </div>
             {s.programs.length > 0 && (
               <ul className="text-xs text-slate-600 space-y-0.5">
-                {s.programs.map((p) => <li key={p.label}>{p.label}: {p.takas} tk · {fmtM(p.m)} m</li>)}
+                {s.programs.map((p) => <li key={p.label} className="flex justify-between gap-2"><span>{p.label}</span><span className="tabular-nums">{p.takas} taka · {fmtM(p.m)} m</span></li>)}
               </ul>
             )}
           </div>
@@ -56,13 +57,13 @@ export function AvailabilityPanel({ data, needs = {} }) {
       <div className="grid grid-cols-1 gap-2">
         <div className="rounded-xl border border-slate-200 p-3 bg-white">
           <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Grey at mill (not yet in a program)</div>
-          <div className="font-semibold text-sky-700">{data.greyAtMill.takas} tk · {fmtM(data.greyAtMill.m)} m</div>
-          <ul className="text-xs text-slate-600">{data.greyAtMill.byMill.map((m) => <li key={m.label}>{m.label}: {m.takas} tk · {fmtM(m.m)} m</li>)}</ul>
+          <Qty className="mt-2" tone="sky" takas={data.greyAtMill.takas} meters={data.greyAtMill.m} />
+          <ul className="mt-2 text-xs text-slate-600 space-y-0.5">{data.greyAtMill.byMill.map((m) => <li key={m.label} className="flex justify-between gap-2"><span>{m.label}</span><span className="tabular-nums">{m.takas} taka · {fmtM(m.m)} m</span></li>)}</ul>
         </div>
         <div className="rounded-xl border border-slate-200 p-3 bg-white">
           <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Grey at our place</div>
-          <div className="font-semibold text-slate-800">{data.greyAtPlace.takas} tk · {fmtM(data.greyAtPlace.m)} m</div>
-          <ul className="text-xs text-slate-600">{data.greyAtPlace.byLocation.map((m) => <li key={m.label}>{m.label}: {m.takas} tk · {fmtM(m.m)} m</li>)}</ul>
+          <Qty className="mt-2" takas={data.greyAtPlace.takas} meters={data.greyAtPlace.m} />
+          <ul className="mt-2 text-xs text-slate-600 space-y-0.5">{data.greyAtPlace.byLocation.map((m) => <li key={m.label} className="flex justify-between gap-2"><span>{m.label}</span><span className="tabular-nums">{m.takas} taka · {fmtM(m.m)} m</span></li>)}</ul>
         </div>
       </div>
     </div>

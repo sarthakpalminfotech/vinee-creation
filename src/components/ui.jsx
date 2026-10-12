@@ -101,7 +101,7 @@ export function PageHeader({ title, description, action, children }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
         {description && <p className="text-sm text-slate-500 mt-1">{description}</p>}
       </div>
       {(action || children) && (
@@ -138,11 +138,11 @@ export function Table({ children, className = '', ...props }) {
 }
 
 export function Th({ children, className = '', ...props }) {
-  return <th className={`px-4 py-3 font-medium text-slate-500 border-b border-slate-200 ${className}`} {...props}>{children}</th>;
+  return <th className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80 border-b border-slate-200 ${className}`} {...props}>{children}</th>;
 }
 
 export function Td({ children, className = '', ...props }) {
-  return <td className={`px-4 py-3 border-b border-slate-100 text-slate-700 ${className}`} {...props}>{children}</td>;
+  return <td className={`px-4 py-3.5 border-b border-slate-100 text-slate-700 align-middle tabular-nums ${className}`} {...props}>{children}</td>;
 }
 
 /** Inline message (replaces alert()). tone: error | success | info */
