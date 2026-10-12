@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Outlet } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Table, Th, Td, Badge, Empty, LoadState, Pager, usePaged } from '../../components/ui';
 import { fmtM, fmtDate } from '../../lib/format';
 import { Plus, Search, ChevronRight, Scissors } from 'lucide-react';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 export default function ProgramListPage() {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ export default function ProgramListPage() {
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     async function load() {
       try {
@@ -24,7 +26,7 @@ export default function ProgramListPage() {
       }
     }
     load();
-  }, []);
+  }, [dbVersion]);
 
   const filtered = programs.filter(p => 
     p.program_no.toLowerCase().includes(search.toLowerCase()) || 
@@ -90,7 +92,7 @@ export default function ProgramListPage() {
                   <Td>
                     <div className="flex -space-x-1">
                       {p.lines.slice(0, 5).map(l => (
-                        <div key={l.id} className="w-6 h-6 rounded-full border border-white shadow-sm" style={{ backgroundColor: l.hex || '#ccc' }} title={l.shade_no}></div>
+                        <div key={l.id} className="w-6 h-6 rounded-full border border-white shadow-sm" style={{ backgroundColor: l.hex || '#ccc' }} title={`${l.item_code ? l.item_code + ' · ' : ''}${l.shade_no}`}></div>
                       ))}
                       {p.lines.length > 5 && <div className="w-6 h-6 rounded-full bg-slate-100 border border-white flex items-center justify-center text-[10px] text-slate-600 font-medium">+{p.lines.length - 5}</div>}
                     </div>
@@ -130,7 +132,6 @@ export default function ProgramListPage() {
         </Table>
         <Pager paged={paged} />
       </Card>
-      <Outlet />
     </div>
   );
 }

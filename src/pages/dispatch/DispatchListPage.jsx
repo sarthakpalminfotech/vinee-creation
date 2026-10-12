@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Outlet } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Table, Th, Td, Empty, LoadState, Pager, usePaged } from '../../components/ui';
 import { fmtM, fmtDate } from '../../lib/format';
 import { Plus, Search, ChevronRight, Truck } from 'lucide-react';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 export default function DispatchListPage() {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ export default function DispatchListPage() {
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     async function load() {
       try {
@@ -24,7 +26,7 @@ export default function DispatchListPage() {
       }
     }
     load();
-  }, []);
+  }, [dbVersion]);
 
   const filtered = dispatches.filter(d => 
     d.dispatch_no.toLowerCase().includes(search.toLowerCase()) || 
@@ -98,7 +100,6 @@ export default function DispatchListPage() {
         </Table>
         <Pager paged={paged} />
       </Card>
-      <Outlet />
     </div>
   );
 }

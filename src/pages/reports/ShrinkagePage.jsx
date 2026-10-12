@@ -3,6 +3,7 @@ import { PageHeader, Card, Table, Th, Td, Input, Select, Empty, LoadState, Pager
 import { TrendingDown } from 'lucide-react';
 import { fmtM, fmtPct } from '../../lib/format';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 const TABS = [['taka', 'Per taka'], ['byPo', 'By PO'], ['byParty', 'By party'], ['byQuality', 'By quality'], ['byMill', 'By mill'], ['byProgram', 'By program']];
 const lossCls = (v) => (v > 0 ? 'text-red-600' : v < 0 ? 'text-emerald-600' : 'text-slate-600');
@@ -49,7 +50,8 @@ export default function ShrinkagePage() {
   const [quality, setQuality] = useState('');
   const [path, setPath] = useState('');
 
-  useEffect(() => { repo.shrinkageReport().then(setRep).catch((e) => setError(e.message)); }, []);
+  const dbVersion = useDbVersion();
+  useEffect(() => { repo.shrinkageReport().then(setRep).catch((e) => setError(e.message)); }, [dbVersion]);
 
   const rows = useMemo(() => {
     if (!rep) return [];

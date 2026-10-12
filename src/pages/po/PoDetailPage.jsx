@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Button, Badge, Table, Th, Td, Drawer, Alert } from '../../components/ui';
 import { fmtM, fmtPct, fmtDate } from '../../lib/format';
-import { ArrowLeft, CheckCircle, Package, MapPin, ExternalLink, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Package, MapPin, ExternalLink, ShieldCheck, Pencil } from 'lucide-react';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 export default function PoDetailPage() {
   const { id } = useParams();
@@ -24,9 +25,10 @@ export default function PoDetailPage() {
     }
   };
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     load();
-  }, [id]);
+  }, [id, dbVersion]);
 
   const handleClosePo = async () => {
     if (!confirm('Close this PO short? No further challans can be received until you re-open it.')) return;
@@ -55,6 +57,7 @@ export default function PoDetailPage() {
         description={`Created on ${fmtDate(po.po_date)}`}
       >
         <Button variant="ghost" onClick={() => navigate('/po')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
+        <Button variant="outline" onClick={() => navigate(`/po/${id}/edit`)}><Pencil className="w-4 h-4 mr-2" /> Edit</Button>
         {po.closed ? <Button variant="outline" onClick={handleReopen}>Re-open PO</Button> : (po.status !== 'RECEIVED' && <Button variant="outline" onClick={handleClosePo}><CheckCircle className="w-4 h-4 mr-2" /> Close PO short</Button>)}
         <Button onClick={() => navigate(`/receipts/new?po_id=${po.id}`)} disabled={!!po.closed}>
           <Package className="w-4 h-4 mr-2" /> Receive Challan

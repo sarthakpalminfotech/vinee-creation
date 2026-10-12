@@ -36,9 +36,11 @@ export async function seed() {
   const qRoyal = await M('qualities', { original_name: 'Rayon Slub', nick_name: 'Royal Slub', taka_length: 100 })
   await M('qualities', { original_name: 'Viscose Crepe', nick_name: 'Velvet Crepe', taka_length: 100 })
 
+  const bSurat = await M('branches', { name: 'Surat Godown', city: 'Surat', address: 'Shop 6065, Textile Market' })
+  const bBhiwandi = await M('branches', { name: 'Bhiwandi Branch', city: 'Bhiwandi', address: 'Shop 6070, Warehouse Row' })
   const L = {}
-  for (const [shop, rack] of [['Shop 6065', 'Rack-A'], ['Shop 6065', 'Rack-B'], ['Shop 6065', 'Rack-C'], ['Shop 6070', 'Rack-A'], ['Shop 6070', 'Rack-B']]) {
-    L[`${shop}/${rack}`] = await M('locations', { shop, rack })
+  for (const [branch, shop, rack] of [[bSurat, 'Shop 6065', 'Rack-A'], [bSurat, 'Shop 6065', 'Rack-B'], [bSurat, 'Shop 6065', 'Rack-C'], [bBhiwandi, 'Shop 6070', 'Rack-A'], [bBhiwandi, 'Shop 6070', 'Rack-B']]) {
+    L[`${shop}/${rack}`] = await M('locations', { branch_id: branch, shop, rack })
   }
 
   const chA = await M('shade_charts', { name: 'Chart-A' })
@@ -55,6 +57,13 @@ export async function seed() {
     await M('shades', { chart_id: chB, number, name, hex })
   }
 
+  // ---- item master: one unique code per quality + colour
+  const IT = {}
+  for (const [qid, qn] of [[qGold, 'Gold Lava'], [qSilver, 'Silver Wave'], [qRoyal, 'Royal Slub']]) {
+    await repo.generateItems(qid, chA)
+    for (const it of await repo.listItems()) if (it.nick_name === qn && it.chart_id === chA) IT[`${qn}/${it.shade_no}`] = it.id
+  }
+
   // ---- grey POs
   const po1 = await repo.createPO({ po_no: 'PO-0001', po_date: daysAgo(40), group_id: gGanesh, quality_id: qGold, meters: 50000, rate: 3.5, taka_length: 100, due_date: daysAgo(-10), notes: 'Paper PO #GT/118' })
   const po2 = await repo.createPO({ po_no: 'PO-0002', po_date: daysAgo(30), group_id: gBalaji, quality_id: qSilver, meters: 20000, rate: 4.2, taka_length: 100, due_date: daysAgo(-5) })
@@ -64,11 +73,11 @@ export async function seed() {
   // ---- grey receipts
   const r1Takas = takas(48)
   ;[94.69, 102.58, 103.5].forEach((m, i) => { r1Takas[i].meter = m })
-  const r1 = await repo.createReceipt({ po_id: po1, weaver_id: wGFab, challan_no: 'GF-501', date: daysAgo(28), destination: 'GODOWN', takas: r1Takas })
+  const r1 = await repo.createReceipt({ po_id: po1, weaver_id: wGFab, challan_no: 'GF-501', date: daysAgo(28), destination: 'GODOWN', branch_id: bSurat, takas: r1Takas })
   await repo.createReceipt({ po_id: po1, weaver_id: wGFas, challan_no: 'GFS-77', date: daysAgo(24), destination: 'MILL', mill_id: mLaxmi, takas: takas(36) })
-  const r3 = await repo.createReceipt({ po_id: po2, weaver_id: wBal, challan_no: 'BSM-2231', date: daysAgo(18), destination: 'GODOWN', takas: takas(30) })
-  await repo.createReceipt({ po_id: po1, weaver_id: wGFab, challan_no: 'GF-519', date: daysAgo(3), destination: 'GODOWN', takas: takas(24, 49) })
-  await repo.createReceipt({ po_id: po4, weaver_id: wGFas, challan_no: 'GFS-61', date: daysAgo(50), destination: 'GODOWN', takas: takas(29) })
+  const r3 = await repo.createReceipt({ po_id: po2, weaver_id: wBal, challan_no: 'BSM-2231', date: daysAgo(18), destination: 'GODOWN', branch_id: bBhiwandi, takas: takas(30) })
+  await repo.createReceipt({ po_id: po1, weaver_id: wGFab, challan_no: 'GF-519', date: daysAgo(3), destination: 'GODOWN', branch_id: bSurat, takas: takas(24, 49) })
+  await repo.createReceipt({ po_id: po4, weaver_id: wGFas, challan_no: 'GFS-61', date: daysAgo(50), destination: 'GODOWN', branch_id: bBhiwandi, takas: takas(29) })
   await repo.setPOClosed(po4, true)
 
   // ---- rack assignment
@@ -83,9 +92,9 @@ export async function seed() {
   await repo.createDispatch({ mill_id: mShiv, date: daysAgo(12), taka_ids: r3t.slice(0, 12).map((t) => t.id) })
 
   // ---- dyeing programs
-  const pg1 = await repo.createProgram({ mill_id: mLaxmi, quality_id: qGold, chart_id: chA, date: daysAgo(19), lines: [{ shade_id: SH['37'], taka_count: 24 }, { shade_id: SH['39'], taka_count: 24 }] })
-  await repo.createProgram({ mill_id: mLaxmi, quality_id: qGold, chart_id: chA, date: daysAgo(9), lines: [{ shade_id: SH['38'], taka_count: 14 }, { shade_id: SH['35'], taka_count: 6 }] })
-  await repo.createProgram({ mill_id: mShiv, quality_id: qSilver, chart_id: chA, date: daysAgo(10), lines: [{ shade_id: SH['42'], taka_count: 12 }] })
+  const pg1 = await repo.createProgram({ mill_id: mLaxmi, quality_id: qGold, chart_id: chA, date: daysAgo(19), lines: [{ item_id: IT['Gold Lava/37'], taka_count: 24 }, { item_id: IT['Gold Lava/39'], taka_count: 24 }] })
+  await repo.createProgram({ mill_id: mLaxmi, quality_id: qGold, chart_id: chA, date: daysAgo(9), lines: [{ item_id: IT['Gold Lava/38'], taka_count: 14 }, { item_id: IT['Gold Lava/35'], taka_count: 6 }] })
+  await repo.createProgram({ mill_id: mShiv, quality_id: qSilver, chart_id: chA, date: daysAgo(10), lines: [{ item_id: IT['Silver Wave/42'], taka_count: 12 }] })
 
   // ---- finished receipt: shade 37 fully + 10 of shade 39
   const p1 = await repo.getProgram(pg1)
@@ -102,6 +111,7 @@ export async function seed() {
   await repo.foldTakas(fin.slice(0, 20).map((t) => ({ id: t.id, folded_meter: Math.round((t.finished_meter - rnd() * 1.6) * 100) / 100 })), daysAgo(5))
 
   // ---- customer order
-  const o1 = await repo.createOrder({ order_no: 'SO-0001', date: daysAgo(4), customer_id: cRadhe, quality_id: qGold, notes: 'Lump order 500 taka — first lot', lines: [{ shade_id: SH['37'], taka_count: 10 }, { shade_id: SH['38'], taka_count: 50 }, { shade_id: SH['39'], taka_count: 50 }] })
+  const o1 = await repo.createOrder({ order_no: 'SO-0001', date: daysAgo(4), customer_id: cRadhe, quality_id: qGold, notes: 'Lump order 500 taka — first lot', lines: [{ item_id: IT['Gold Lava/37'], taka_count: 10 }, { item_id: IT['Gold Lava/38'], taka_count: 50 }, { item_id: IT['Gold Lava/39'], taka_count: 50 }] })
   await repo.allocateOrder(o1)
+  await repo.createOrder({ order_no: 'SO-0002', date: daysAgo(1), customer_id: cRadhe, quality_id: qGold, notes: 'Customer asked in meters', lines: [{ item_id: IT['Gold Lava/37'], meters: 1500 }] })
 }

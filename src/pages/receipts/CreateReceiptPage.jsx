@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Select, Field, Th, Td, Drawer, Alert, useAction } from '../../components/ui';
 import { ArrowLeft, Save, Plus, Trash2, ClipboardPaste, AlertTriangle } from 'lucide-react';
 import * as repo from '../../db/repo';
 
 const METER_RE = /^\d+(\.\d{1,2})?$/;
 let seq = 0;
-const newRow = (taka_no = '', meter = '') => ({ id: `r${++seq}`, taka_no: String(taka_no), meter: String(meter) });
+const newRow = (taka_no = '', meter = '', dbId = null) => ({ id: `r${++seq}`, dbId, taka_no: String(taka_no), meter: String(meter) });
 
 /**
  * Parse pasted text (Excel / plain). Each line: "meter" or "takaNo<tab|comma|space>meter".
@@ -25,7 +25,7 @@ export function parsePaste(text, startNo) {
   return out;
 }
 
-const Row = memo(function Row({ row, idx, dup, nominal, onChange, onEnter, onRemove, onPaste }) {
+const Row = memo(function Row({ row, idx, dup, nominal, locked, onChange, onEnter, onRemove, onPaste }) {
   const m = Number.parseFloat(row.meter);
   const badMeter = row.meter !== '' && !METER_RE.test(row.meter.trim());
   const outlier = !badMeter && m > 0 && (m < nominal * 0.9 || m > nominal * 1.1);
@@ -33,11 +33,11 @@ const Row = memo(function Row({ row, idx, dup, nominal, onChange, onEnter, onRem
     <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
       <Td className="text-center text-slate-400 w-12">{idx + 1}</Td>
       <Td className="p-1.5">
-        <Input id={`no-${row.id}`} value={row.taka_no} onChange={(e) => onChange(row.id, 'taka_no', e.target.value)} error={dup} className="h-8" aria-label={`Taka number row ${idx + 1}`}
+        <Input id={`no-${row.id}`} disabled={locked} value={row.taka_no} onChange={(e) => onChange(row.id, 'taka_no', e.target.value)} error={dup} className="h-8" aria-label={`Taka number row ${idx + 1}`}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById(`m-${row.id}`)?.focus(); } }} />
       </Td>
       <Td className="p-1.5">
-        <Input id={`m-${row.id}`} inputMode="decimal" value={row.meter} aria-label={`Meters row ${idx + 1}`}
+        <Input id={`m-${row.id}`} disabled={locked} inputMode="decimal" value={row.meter} aria-label={`Meters row ${idx + 1}`}
           onChange={(e) => onChange(row.id, 'meter', e.target.value)} error={badMeter}
           onPaste={(e) => onPaste(e, row.id)}
           className={`h-8 ${outlier ? 'border-amber-300 bg-amber-50 text-amber-900' : ''}`}
@@ -49,7 +49,7 @@ const Row = memo(function Row({ row, idx, dup, nominal, onChange, onEnter, onRem
         {outlier && <AlertTriangle className="w-4 h-4 text-amber-500 inline" title={`Far from the nominal ${nominal} m`} />}
       </Td>
       <Td className="text-right p-1.5 w-12">
-        <button type="button" tabIndex={-1} onClick={() => onRemove(row.id)} className="p-1 text-slate-400 hover:text-red-500 rounded" aria-label="Remove row"><Trash2 className="w-4 h-4" /></button>
+        <button type="button" tabIndex={-1} disabled={locked} onClick={() => onRemove(row.id)} className="p-1 text-slate-400 hover:text-red-500 rounded" aria-label="Remove row"><Trash2 className="w-4 h-4" /></button>
       </Td>
     </tr>
   );
@@ -57,6 +57,8 @@ const Row = memo(function Row({ row, idx, dup, nominal, onChange, onEnter, onRem
 
 export default function CreateReceiptPage() {
   const navigate = useNavigate();
+  const { id: editId } = useParams();
+  const isEdit = !!editId;
   const [searchParams] = useSearchParams();
   const initialPoId = searchParams.get('po_id') || '';
   const { busy, error, setError, run } = useAction();
@@ -67,10 +69,13 @@ export default function CreateReceiptPage() {
   const [weavers, setWeavers] = useState([]);
   const [mills, setMills] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [locked, setLocked] = useState(false); // edit mode: takas already moved on, only the header can change
+  const [editReceipt, setEditReceipt] = useState(null);
 
   const [formData, setFormData] = useState(() => ({
     po_id: initialPoId, weaver_id: '', challan_no: '', date: new Date().toISOString().slice(0, 10),
-    destination: 'GODOWN', mill_id: '', location_id: '', notes: '',
+    destination: 'GODOWN', branch_id: '', mill_id: '', location_id: '', notes: '', image_url: '',
   }));
   const [rows, setRows] = useState([]);
   const [pasteMode, setPasteMode] = useState(false);
@@ -84,17 +89,32 @@ export default function CreateReceiptPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [allPos, allWeavers, allMills, allLocs] = await Promise.all([repo.listPOs(), repo.listWeavers(), repo.listMills(), repo.listLocations()]);
-        setPos(allPos.filter((p) => p.status === 'OPEN' || p.status === 'PARTIAL' || p.status === 'RECEIVED'));
-        setWeavers(allWeavers); setMills(allMills); setLocations(allLocs);
+        const [allPos, allWeavers, allMills, allLocs, allBranches] = await Promise.all([repo.listPOs(), repo.listWeavers(), repo.listMills(), repo.listLocations(), repo.listBranches()]);
+        setPos(isEdit ? allPos : allPos.filter((p) => p.status === 'OPEN' || p.status === 'PARTIAL' || p.status === 'RECEIVED'));
+        setWeavers(allWeavers); setMills(allMills); setLocations(allLocs); setBranches(allBranches);
+        if (isEdit) {
+          const rc = await repo.getReceipt(Number(editId));
+          if (!rc) throw new Error('Challan not found');
+          setEditReceipt(rc);
+          setFormData({
+            po_id: String(rc.po_id), weaver_id: String(rc.weaver_id), challan_no: rc.challan_no, date: rc.date || '', destination: rc.destination,
+            branch_id: rc.branch_id ? String(rc.branch_id) : '', mill_id: rc.mill_id ? String(rc.mill_id) : '', location_id: '', notes: rc.notes || '', image_url: rc.image_url || '',
+          });
+          setRows(rc.takas.map((t) => newRow(t.taka_no, t.grey_meter, t.id)));
+          const okStatus = rc.destination === 'MILL' ? 'MILL_GREY' : 'GODOWN_GREY';
+          setLocked(!rc.takas.every((t) => t.status === okStatus && !t.dispatch_id && !t.program_line_id));
+        } else if (allBranches.length === 1) {
+          setFormData((f) => ({ ...f, branch_id: String(allBranches[0].id) }));
+        }
       } catch (e) { setLoadError(e.message); } finally { setLoading(false); }
     })();
-  }, []);
+  }, [editId]);
 
   const selectedPo = useMemo(() => pos.find((p) => String(p.id) === String(formData.po_id)), [pos, formData.po_id]);
   const availableWeavers = useMemo(() => (selectedPo ? weavers.filter((w) => w.group_id === selectedPo.group_id) : []), [weavers, selectedPo]);
 
   const setField = (k, v) => setFormData((p) => ({ ...p, [k]: v }));
+  const branchLocations = useMemo(() => locations.filter((l) => String(l.branch_id) === String(formData.branch_id)), [locations, formData.branch_id]);
   const changePo = (id) => setFormData((p) => ({ ...p, po_id: id, weaver_id: '' }));
 
   // focus the meter cell of a row that was just added
@@ -189,9 +209,15 @@ export default function CreateReceiptPage() {
       if (!formData.weaver_id) throw new Error('Choose the party (firm) that sent this challan');
       if (!formData.challan_no.trim()) throw new Error('Enter the weaver challan number');
       if (formData.destination === 'MILL' && !formData.mill_id) throw new Error('Choose the mill it was delivered to');
+      if (formData.destination === 'GODOWN' && !formData.branch_id) throw new Error('Choose the branch where this grey was received');
       if (issues.length) throw new Error(`Fix the takas first: ${issues.join('; ')}`);
       const used = rows.filter((r) => r.meter !== '' || r.taka_no !== '');
       if (!used.length) throw new Error('Add at least one taka');
+      if (isEdit) {
+        await repo.updateReceipt(Number(editId), { ...formData, takas: locked ? undefined : used.map((r) => ({ id: r.dbId, taka_no: r.taka_no, meter: r.meter })) });
+        navigate(`/receipts/${editId}`);
+        return;
+      }
       const id = await repo.createReceipt({ ...formData, takas: used.map((r) => ({ taka_no: r.taka_no, meter: r.meter })) });
       navigate(`/receipts/${id}`);
     });
@@ -208,8 +234,8 @@ export default function CreateReceiptPage() {
   return (
     <Drawer isOpen onClose={() => navigate('/receipts')}>
       <div className="space-y-6 max-w-5xl mx-auto">
-        <PageHeader title="Receive Grey Challan" description="Log incoming grey fabric from a weaver. Tip: paste a column of meters (or taka no + meters) straight from Excel into any meter cell.">
-          <Button variant="ghost" onClick={() => navigate('/receipts')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
+        <PageHeader title={isEdit ? `Edit Challan ${editReceipt?.challan_no || ''}` : 'Receive Grey Challan'} description={isEdit ? 'Change the challan details. Takas can be edited only while they are still untouched.' : 'Log incoming grey fabric from a weaver. Tip: paste a column of meters (or taka no + meters) straight from Excel into any meter cell.'}>
+          <Button variant="ghost" onClick={() => navigate(isEdit ? `/receipts/${editId}` : '/receipts')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
         </PageHeader>
 
         <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -218,7 +244,7 @@ export default function CreateReceiptPage() {
               <h3 className="text-lg font-semibold text-slate-900 mb-4">Challan Details</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Purchase Order *">
-                  <Select required value={formData.po_id} onChange={(e) => changePo(e.target.value)}>
+                  <Select required disabled={isEdit} value={formData.po_id} onChange={(e) => changePo(e.target.value)}>
                     <option value="">Select PO...</option>
                     {pos.map((p) => <option key={p.id} value={p.id}>{p.po_no} · {p.group_name} · {p.original_name}</option>)}
                   </Select>
@@ -246,29 +272,40 @@ export default function CreateReceiptPage() {
                 <h4 className="text-sm font-medium text-slate-700 mb-3">Destination</h4>
                 <div className="flex gap-4 mb-4">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="dest" checked={formData.destination === 'GODOWN'} onChange={() => setField('destination', 'GODOWN')} />
+                    <input type="radio" name="dest" disabled={isEdit} checked={formData.destination === 'GODOWN'} onChange={() => setField('destination', 'GODOWN')} />
                     <span className="text-sm font-medium">Our godown</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="dest" checked={formData.destination === 'MILL'} onChange={() => setField('destination', 'MILL')} />
+                    <input type="radio" name="dest" disabled={isEdit} checked={formData.destination === 'MILL'} onChange={() => setField('destination', 'MILL')} />
                     <span className="text-sm font-medium">Direct to mill</span>
                   </label>
                 </div>
                 {formData.destination === 'MILL' ? (
                   <Field label="Mill *">
-                    <Select required value={formData.mill_id} onChange={(e) => setField('mill_id', e.target.value)}>
+                    <Select required disabled={isEdit} value={formData.mill_id} onChange={(e) => setField('mill_id', e.target.value)}>
                       <option value="">Select Mill...</option>
                       {mills.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                     </Select>
                   </Field>
                 ) : (
-                  <Field label="Rack (optional — you can assign racks later in bulk)">
-                    <Select value={formData.location_id} onChange={(e) => setField('location_id', e.target.value)}>
-                      <option value="">Leave unassigned</option>
-                      {locations.map((l) => <option key={l.id} value={l.id}>{repo.locLabel(l.shop, l.rack)}</option>)}
-                    </Select>
-                  </Field>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Received at branch *">
+                      <Select required disabled={isEdit && locked} value={formData.branch_id} onChange={(e) => setFormData((f) => ({ ...f, branch_id: e.target.value, location_id: '' }))}>
+                        <option value="">{branches.length ? 'Select branch...' : 'No branches — add one in Masters'}</option>
+                        {branches.map((b) => <option key={b.id} value={b.id}>{b.name}{b.city ? ` · ${b.city}` : ''}</option>)}
+                      </Select>
+                    </Field>
+                    {!isEdit && (
+                      <Field label="Rack (optional — assign racks later in bulk)">
+                        <Select value={formData.location_id} disabled={!formData.branch_id} onChange={(e) => setField('location_id', e.target.value)}>
+                          <option value="">{formData.branch_id ? 'Leave unassigned' : 'Choose a branch first'}</option>
+                          {branchLocations.map((l) => <option key={l.id} value={l.id}>{repo.locLabel(l.shop, l.rack)}</option>)}
+                        </Select>
+                      </Field>
+                    )}
+                  </div>
                 )}
+                {isEdit && formData.destination === 'GODOWN' && !locked && <p className="text-xs text-amber-600 mt-2">Changing the branch clears the racks of these takas — assign racks again afterwards.</p>}
               </div>
             </Card>
 
@@ -276,11 +313,11 @@ export default function CreateReceiptPage() {
               <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
                 <h3 className="text-lg font-semibold text-slate-900">Takas ({rows.length} rows)</h3>
                 <div className="flex flex-wrap gap-2 items-center">
-                  <Button type="button" variant={pasteMode ? 'primary' : 'outline'} size="sm" onClick={() => setPasteMode(!pasteMode)}>
+                  <Button type="button" disabled={locked} variant={pasteMode ? 'primary' : 'outline'} size="sm" onClick={() => setPasteMode(!pasteMode)}>
                     <ClipboardPaste className="w-4 h-4 mr-2" /> Bulk Paste
                   </Button>
                   <Input className="h-8 w-16" inputMode="numeric" value={addCount} onChange={(e) => setAddCount(e.target.value)} aria-label="Rows to add" />
-                  <Button type="button" variant="outline" size="sm" onClick={() => addRows(addCount)}><Plus className="w-4 h-4 mr-1" /> Add rows</Button>
+                  <Button type="button" disabled={locked} variant="outline" size="sm" onClick={() => addRows(addCount)}><Plus className="w-4 h-4 mr-1" /> Add rows</Button>
                 </div>
               </div>
 
@@ -303,7 +340,7 @@ export default function CreateReceiptPage() {
                   </thead>
                   <tbody>
                     {rows.map((r, idx) => (
-                      <Row key={r.id} row={r} idx={idx} nominal={nominal} dup={dupSet.has(r.taka_no.trim().toLowerCase())}
+                      <Row key={r.id} row={r} idx={idx} nominal={nominal} locked={locked} dup={dupSet.has(r.taka_no.trim().toLowerCase())}
                         onChange={onChange} onEnter={onEnter} onRemove={onRemove} onPaste={onPaste} />
                     ))}
                     {rows.length === 0 && (
@@ -319,6 +356,7 @@ export default function CreateReceiptPage() {
                   </tbody>
                 </table>
               </div>
+              {locked && <Alert tone="info" className="mt-3">Some takas of this challan were already sent to a mill or put in a program, so only the challan details can change — not the takas.</Alert>}
               <p className="text-xs text-slate-400 mt-2">Enter moves to the next row (and adds one at the end). Meters accept up to 2 decimals.</p>
             </Card>
           </div>
@@ -338,7 +376,7 @@ export default function CreateReceiptPage() {
               <Alert className="mt-4">{error}</Alert>
               <div className="mt-6 pt-6 border-t border-slate-200">
                 <Button type="submit" className="w-full h-12 text-base shadow-sm" disabled={busy || filled === 0}>
-                  <Save className="w-5 h-5 mr-2" />{busy ? 'Saving…' : 'Save Receipt'}
+                  <Save className="w-5 h-5 mr-2" />{busy ? 'Saving…' : isEdit ? 'Save changes' : 'Save Receipt'}
                 </Button>
               </div>
             </Card>

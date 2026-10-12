@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Button, Badge, Table, Th, Td, Drawer } from '../../components/ui';
-import { ArrowLeft, MapPin, ShieldCheck, FileText, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, MapPin, ShieldCheck, FileText, CheckCircle2, Pencil } from 'lucide-react';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 export default function ReceiptDetailPage() {
   const { id } = useParams();
@@ -10,6 +11,7 @@ export default function ReceiptDetailPage() {
   const [loading, setLoading] = useState(true);
   const [receipt, setReceipt] = useState(null);
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     async function load() {
       try {
@@ -23,7 +25,7 @@ export default function ReceiptDetailPage() {
       }
     }
     load();
-  }, [id]);
+  }, [id, dbVersion]);
 
   if (loading || !receipt) return <div className="p-12 text-center text-slate-500">Loading...</div>;
 
@@ -37,6 +39,7 @@ export default function ReceiptDetailPage() {
           description={`Received on ${new Date(receipt.date).toLocaleDateString()}`}
         >
           <Button variant="ghost" onClick={() => navigate('/receipts')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
+          <Button variant="outline" onClick={() => navigate(`/receipts/${id}/edit`)}><Pencil className="w-4 h-4 mr-2" /> Edit</Button>
         </PageHeader>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -48,7 +51,7 @@ export default function ReceiptDetailPage() {
             </div>
             {isMill ? 
               <Badge variant="primary" className="bg-sky-50 text-sky-700">Sent Direct to Mill</Badge> : 
-              <Badge variant="gray">Godown Storage</Badge>
+              <Badge variant="gray">Godown · {receipt.branch_name || 'no branch'}</Badge>
             }
           </div>
           
@@ -65,7 +68,7 @@ export default function ReceiptDetailPage() {
             <div className="bg-slate-50 p-3 rounded-lg">
               <div className="text-xs text-slate-500 mb-1">Destination</div>
               <div className="font-semibold text-slate-900 flex items-center">
-                {isMill ? <><ShieldCheck className="w-3.5 h-3.5 mr-1 text-sky-500" /> {receipt.mill_name}</> : <><MapPin className="w-3.5 h-3.5 mr-1 text-slate-500" /> Godown</>}
+                {isMill ? <><ShieldCheck className="w-3.5 h-3.5 mr-1 text-sky-500" /> {receipt.mill_name}</> : <><MapPin className="w-3.5 h-3.5 mr-1 text-slate-500" /> {receipt.branch_name || 'Godown'}</>}
               </div>
             </div>
             <div className="bg-slate-50 p-3 rounded-lg">

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PageHeader, Card, Button, Input, Modal, Field, Table, Th, Td, Empty, Alert } from '../../components/ui';
-import { Search, Plus, Edit, Trash2, ChevronDown, ChevronRight, AlertCircle, Palette } from 'lucide-react';
+import { PageHeader, Card, Button, Input, Select, Modal, Field, Table, Th, Td, Empty, Alert } from '../../components/ui';
+import { useDbVersion } from '../../lib/live';
+import { Search, Plus, Edit, Trash2, ChevronDown, ChevronRight, AlertCircle, Palette, Wand2 } from 'lucide-react';
 import * as repo from '../../db/repo';
 
 const TABS = [
@@ -9,9 +10,16 @@ const TABS = [
   { id: 'mills', label: 'Mills' },
   { id: 'customers', label: 'Customers' },
   { id: 'qualities', label: 'Qualities' },
-  { id: 'locations', label: 'Locations' },
+  { id: 'branches', label: 'Branches' },
+  { id: 'locations', label: 'Racks' },
   { id: 'shades', label: 'Shades' },
+  { id: 'items', label: 'Items' },
 ];
+
+const MODAL_TITLES = {
+  weaver_groups: 'party group', weavers: 'party', mills: 'mill', customers: 'customer', qualities: 'quality', branches: 'branch',
+  locations: 'rack', shade_charts: 'shade chart', shades: 'shade', items: 'item',
+};
 
 export default function MastersPage() {
   const { tab } = useParams();
@@ -33,19 +41,29 @@ export default function MastersPage() {
   
   // Form State
   const [formData, setFormData] = useState({});
+  const [opts, setOpts] = useState({ branches: [], qualities: [], charts: [], shades: [] });
+  const [genQ, setGenQ] = useState('');
+  const [genChart, setGenChart] = useState('');
+  const version = useDbVersion();
 
   const loadData = async () => {
-    setLoading(true);
+    if (dataTab !== tab) setLoading(true);
     try {
       let res;
       if (tab === 'weavers') res = await repo.listWeaverGroups();
       else if (tab === 'mills') res = await repo.listMills();
       else if (tab === 'customers') res = await repo.listCustomers();
       else if (tab === 'qualities') res = await repo.listQualities();
+      else if (tab === 'branches') res = await repo.listBranches();
       else if (tab === 'locations') res = await repo.listLocations();
+      else if (tab === 'items') res = await repo.listItems();
       else if (tab === 'shades') {
         const [charts, shades] = await Promise.all([repo.listCharts(), repo.listShades()]);
         res = { charts, shades };
+      }
+      if (tab === 'locations' || tab === 'items') {
+        const [branches, qualities, charts, shades] = await Promise.all([repo.listBranches(), repo.listQualities(), repo.listCharts(), repo.listShades()]);
+        setOpts({ branches, qualities, charts, shades });
       }
       setData(res);
       setDataTab(tab);
@@ -57,9 +75,11 @@ export default function MastersPage() {
   };
 
   useEffect(() => {
-    loadData();
     setSearch('');
   }, [tab]);
+  useEffect(() => {
+    loadData();
+  }, [tab, version]);
 
   const handleOpenModal = (type, item = null, extraProps = {}) => {
     setModalType(type);
@@ -147,9 +167,64 @@ export default function MastersPage() {
       );
     }
 
+    if (modalType === 'branches') {
+      return (
+        <form onSubmit={handleSave} className="space-y-4">
+          <Field label="Branch name"><Input required placeholder="e.g. Surat Godown" value={formData.name || ''} onChange={e => handleFormChange('name', e.target.value)} /></Field>
+          <Field label="City"><Input placeholder="e.g. Surat" value={formData.city || ''} onChange={e => handleFormChange('city', e.target.value)} /></Field>
+          <Field label="Address"><Input placeholder="e.g. Shop 6065, Textile Market" value={formData.address || ''} onChange={e => handleFormChange('address', e.target.value)} /></Field>
+          <Field label="Phone"><Input placeholder="e.g. 98250 12345" value={formData.phone || ''} onChange={e => handleFormChange('phone', e.target.value)} /></Field>
+          <Alert>{errorMsg}</Alert>
+          <div className="pt-4 flex justify-end gap-3">
+            <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+          </div>
+        </form>
+      );
+    }
+
+    if (modalType === 'items') {
+      const q = opts.qualities.find(x => String(x.id) === String(formData.quality_id));
+      const sh = opts.shades.find(x => String(x.id) === String(formData.shade_id));
+      return (
+        <form onSubmit={handleSave} className="space-y-4">
+          <Field label="Quality (nickname) *">
+            <Select required value={formData.quality_id || ''} onChange={e => handleFormChange('quality_id', e.target.value)}>
+              <option value="">Select quality...</option>
+              {opts.qualities.map(x => <option key={x.id} value={x.id}>{x.nick_name} ({x.original_name})</option>)}
+            </Select>
+          </Field>
+          <Field label="Colour / shade">
+            <Select value={formData.shade_id || ''} onChange={e => handleFormChange('shade_id', e.target.value)}>
+              <option value="">No colour (grey item)</option>
+              {opts.shades.map(x => <option key={x.id} value={x.id}>{x.chart_name} · {x.number}{x.name ? ` ${x.name}` : ''}</option>)}
+            </Select>
+          </Field>
+          <Field label="Unique item code *">
+            <div className="flex gap-2">
+              <Input required placeholder="e.g. GL-37" value={formData.code || ''} onChange={e => handleFormChange('code', e.target.value)} />
+              <Button type="button" variant="outline" disabled={!q} onClick={() => handleFormChange('code', repo.suggestItemCode(q?.nick_name, sh?.number))}>Suggest</Button>
+            </div>
+          </Field>
+          <Field label="Notes"><Input value={formData.notes || ''} onChange={e => handleFormChange('notes', e.target.value)} /></Field>
+          <Alert>{errorMsg}</Alert>
+          <div className="pt-4 flex justify-end gap-3">
+            <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+          </div>
+        </form>
+      );
+    }
+
     if (modalType === 'locations') {
       return (
         <form onSubmit={handleSave} className="space-y-4">
+          <Field label="Branch *">
+            <Select required value={formData.branch_id || ''} onChange={e => handleFormChange('branch_id', e.target.value)}>
+              <option value="">Select branch...</option>
+              {opts.branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </Select>
+          </Field>
           <Field label="Shop"><Input required placeholder="e.g. Shop 6065" value={formData.shop || ''} onChange={e => handleFormChange('shop', e.target.value)} /></Field>
           <Field label="Rack"><Input required placeholder="e.g. Rack-A" value={formData.rack || ''} onChange={e => handleFormChange('rack', e.target.value)} /></Field>
           <Alert>{errorMsg}</Alert>
@@ -272,16 +347,88 @@ export default function MastersPage() {
       );
     }
 
-    if (tab === 'locations') {
-      const filtered = data.filter(l => (l.shop || '').toLowerCase().includes(lSearch) || (l.rack || '').toLowerCase().includes(lSearch));
+    if (tab === 'branches') {
+      const filtered = data.filter(b => b.name.toLowerCase().includes(lSearch) || (b.city || '').toLowerCase().includes(lSearch));
       return (
         <Card>
           <Table>
-            <thead><tr><Th>Shop</Th><Th>Rack</Th><Th className="w-24 text-right">Actions</Th></tr></thead>
+            <thead><tr><Th>Branch</Th><Th>City</Th><Th>Address</Th><Th>Phone</Th><Th className="w-24 text-right">Actions</Th></tr></thead>
             <tbody>
               {filtered.map(row => (
                 <tr key={row.id}>
-                  <Td className="font-medium">{row.shop}</Td><Td>{row.rack}</Td>
+                  <Td className="font-medium">{row.name}</Td><Td>{row.city || '-'}</Td><Td>{row.address || '-'}</Td><Td>{row.phone || '-'}</Td>
+                  <Td className="text-right">
+                    <button onClick={() => handleOpenModal('branches', row)} className="p-1.5 text-slate-400 hover:text-primary-600"><Edit className="w-4 h-4" /></button>
+                    <button onClick={() => handleDelete('branches', row.id)} className="p-1.5 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+          {filtered.length === 0 && <div className="p-8 text-center text-slate-500">No branches yet. Add every place where grey is received.</div>}
+        </Card>
+      );
+    }
+
+    if (tab === 'items') {
+      const filtered = data.filter(i => i.code.toLowerCase().includes(lSearch) || (i.nick_name || '').toLowerCase().includes(lSearch) || (i.shade_name || '').toLowerCase().includes(lSearch) || String(i.shade_no || '').toLowerCase().includes(lSearch));
+      const chartsForGen = opts.charts;
+      return (
+        <div className="space-y-4">
+          <Card className="p-4 flex flex-col sm:flex-row sm:items-end gap-3 bg-slate-50">
+            <div className="flex-1 text-sm text-slate-600">
+              <div className="font-medium text-slate-800">Create codes for a whole shade chart</div>
+              Every colour of the chart becomes an item of the quality, e.g. <span className="font-mono">GL-37</span>. Existing items are kept.
+            </div>
+            <Select className="sm:w-48 bg-white" value={genQ} onChange={e => setGenQ(e.target.value)}>
+              <option value="">Quality...</option>
+              {opts.qualities.map(x => <option key={x.id} value={x.id}>{x.nick_name}</option>)}
+            </Select>
+            <Select className="sm:w-44 bg-white" value={genChart} onChange={e => setGenChart(e.target.value)}>
+              <option value="">Shade chart...</option>
+              {chartsForGen.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+            <Button type="button" variant="outline" disabled={!genQ || !genChart} onClick={async () => {
+              setPageError('');
+              try { const n = await repo.generateItems(Number(genQ), Number(genChart)); setPageError(n ? '' : 'Nothing new — every colour already has an item.'); } catch (err) { setPageError(err.message); }
+            }}><Wand2 className="w-4 h-4 mr-2" /> Generate</Button>
+          </Card>
+          <Card>
+            <Table>
+              <thead><tr><Th>Code</Th><Th>Quality</Th><Th>Colour</Th><Th>Chart</Th><Th className="w-24 text-right">Actions</Th></tr></thead>
+              <tbody>
+                {filtered.map(row => (
+                  <tr key={row.id}>
+                    <Td className="font-mono font-semibold text-slate-900">{row.code}</Td>
+                    <Td>{row.nick_name}</Td>
+                    <Td>{row.shade_id ? (
+                      <span className="inline-flex items-center gap-2"><span className="w-4 h-4 rounded border border-slate-200" style={{ backgroundColor: row.hex }} />{row.shade_no}{row.shade_name ? ` · ${row.shade_name}` : ''}</span>
+                    ) : <span className="text-slate-400">grey (no colour)</span>}</Td>
+                    <Td>{row.chart_name || '-'}</Td>
+                    <Td className="text-right">
+                      <button onClick={() => handleOpenModal('items', row)} className="p-1.5 text-slate-400 hover:text-primary-600"><Edit className="w-4 h-4" /></button>
+                      <button onClick={() => handleDelete('items', row.id)} className="p-1.5 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+            {filtered.length === 0 && <div className="p-8 text-center text-slate-500">No items yet. Add one, or generate them from a shade chart above.</div>}
+          </Card>
+        </div>
+      );
+    }
+
+    if (tab === 'locations') {
+      const filtered = data.filter(l => (l.shop || '').toLowerCase().includes(lSearch) || (l.rack || '').toLowerCase().includes(lSearch) || (l.branch_name || '').toLowerCase().includes(lSearch));
+      return (
+        <Card>
+          <Table>
+            <thead><tr><Th>Branch</Th><Th>Shop</Th><Th>Rack</Th><Th className="w-24 text-right">Actions</Th></tr></thead>
+            <tbody>
+              {filtered.map(row => (
+                <tr key={row.id}>
+                  <Td className="font-medium">{row.branch_name || <span className="text-amber-600">no branch</span>}</Td><Td>{row.shop}</Td><Td>{row.rack}</Td>
                   <Td className="text-right">
                     <button onClick={() => handleOpenModal('locations', row)} className="p-1.5 text-slate-400 hover:text-primary-600"><Edit className="w-4 h-4" /></button>
                     <button onClick={() => handleDelete('locations', row.id)} className="p-1.5 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
@@ -348,7 +495,9 @@ export default function MastersPage() {
       case 'mills': return 'Add Mill';
       case 'customers': return 'Add Customer';
       case 'qualities': return 'Add Quality';
-      case 'locations': return 'Add Location';
+      case 'branches': return 'Add Branch';
+      case 'locations': return 'Add Rack';
+      case 'items': return 'Add Item';
       case 'shades': return 'Add Shade Chart';
       default: return 'Add Item';
     }
@@ -392,12 +541,13 @@ export default function MastersPage() {
         </Button>
       </PageHeader>
 
+      <Alert tone="error">{pageError}</Alert>
       {renderContent()}
 
       <Modal 
         isOpen={modalOpen} 
         onClose={() => setModalOpen(false)} 
-        title={modalType ? (editItem ? `Edit ${modalType.replace('_', ' ').replace(/s$/, '')}` : `Add ${modalType.replace('_', ' ').replace(/s$/, '')}`) : ''}
+        title={modalType ? `${editItem ? 'Edit' : 'Add'} ${MODAL_TITLES[modalType] || modalType}` : ''}
       >
         {renderModalContent()}
       </Modal>

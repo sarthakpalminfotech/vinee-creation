@@ -4,6 +4,8 @@ import { createServer } from 'vite'
 export async function loadRepo() {
   const server = await createServer({
     configFile: false, logLevel: 'silent', appType: 'custom',
+    // tests must NEVER reach a real (Turso) database: do not read .env files, expose no VITE_ variables
+    envDir: false, envPrefix: 'VINEE_TEST_ONLY_',
     server: { middlewareMode: true, hmr: false, watch: null },
     optimizeDeps: { noDiscovery: true, include: [] },
   })

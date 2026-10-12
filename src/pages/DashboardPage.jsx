@@ -3,15 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Button, Table, Th, Td } from '../components/ui';
 import { Plus, TrendingUp, Package, Scissors, CheckCircle, Truck, ShoppingCart } from 'lucide-react';
 import * as repo from '../db/repo';
+import { useDbVersion } from '../lib/live';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     repo.dashboard().then(setData).catch((e) => setError(e.message));
-  }, []);
+  }, [dbVersion]);
 
   if (error) return <div className="p-12 text-center text-red-600">{error}</div>;
   if (!data) return <div className="p-12 text-center text-slate-500">Loading...</div>;

@@ -1,5 +1,5 @@
 // DB adapter: Turso (libSQL over HTTP) when env is configured, else local SQLite (sql.js) persisted in IndexedDB.
-import { SCHEMA, MIGRATIONS, TABLES } from './schema'
+import { SCHEMA, MIGRATIONS, COLUMNS, TABLES } from './schema'
 
 const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
 const TURSO_URL = env.VITE_TURSO_DATABASE_URL
@@ -112,12 +112,32 @@ async function makeTurso() {
   }
 }
 
+/** Adds missing columns and moves old single-godown data under a default branch. Safe to run on every start. */
+async function upgrade(impl) {
+  const have = {}
+  for (const [t, c, type] of COLUMNS) {
+    have[t] ||= new Set((await impl.all(`PRAGMA table_info(${t})`)).map((r) => r.name))
+    if (!have[t].has(c)) { await impl.run(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`); have[t].add(c) }
+  }
+  const n = Number((await impl.all('SELECT COUNT(*) AS c FROM branches'))[0].c)
+  if (n === 0) {
+    const used = Number((await impl.all('SELECT (SELECT COUNT(*) FROM locations) + (SELECT COUNT(*) FROM grey_receipts) AS c'))[0].c)
+    if (used > 0) {
+      const { lastId } = await impl.run("INSERT INTO branches (name) VALUES ('Main Godown')")
+      await impl.run('UPDATE locations SET branch_id=? WHERE branch_id IS NULL', [lastId])
+      await impl.run("UPDATE grey_receipts SET branch_id=? WHERE branch_id IS NULL AND destination='GODOWN'", [lastId])
+      await impl.run("UPDATE takas SET branch_id=? WHERE branch_id IS NULL AND receipt_id IN (SELECT id FROM grey_receipts WHERE destination='GODOWN')", [lastId])
+    }
+  }
+}
+
 let ready
 export function db() {
   if (!ready) {
     ready = (async () => {
       const impl = mode === 'turso' ? await makeTurso() : await makeLocal()
       for (const s of SCHEMA) await impl.run(s)
+      await upgrade(impl)
       // Optional additive migrations (indexes etc.): never fatal, e.g. a unique index is skipped if old data already has duplicates.
       for (const m of MIGRATIONS) await impl.run(m).catch((e) => console.warn('Migration skipped:', m, e?.message))
       return impl
@@ -126,13 +146,22 @@ export function db() {
   return ready
 }
 
+// ---------- change notification: any successful write bumps the version so open screens can reload ----------
+let version = 0
+const listeners = new Set()
+export const getVersion = () => version
+export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn) }
+export function notifyChange() { version += 1; listeners.forEach((fn) => { try { fn(version) } catch { /* ignore */ } }) }
+
 export const all = async (sql, args) => (await db()).all(sql, args)
 export const one = async (sql, args) => (await all(sql, args))[0] || null
-export const run = async (sql, args) => (await db()).run(sql, args)
+export const run = async (sql, args) => { const r = await (await db()).run(sql, args); notifyChange(); return r }
 /** Run fn({all, one, run}) as one atomic transaction (all-or-nothing). Use ONLY the passed handle inside fn. */
 export async function tx(fn) {
   const impl = await db()
-  return impl.transaction((t) => fn({ all: t.all, one: async (sql, args) => (await t.all(sql, args))[0] || null, run: t.run }))
+  const out = await impl.transaction((t) => fn({ all: t.all, one: async (sql, args) => (await t.all(sql, args))[0] || null, run: t.run }))
+  notifyChange()
+  return out
 }
 /** Local mode only: the whole database as bytes (for a backup download). */
 export async function exportBackup() {

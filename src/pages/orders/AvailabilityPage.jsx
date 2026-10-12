@@ -3,6 +3,7 @@ import { PageHeader, Card, Select, Input, Button, Field, Alert, LoadState } from
 import { Plus, Trash2 } from 'lucide-react';
 import { AvailabilityPanel, useAvailability } from './AvailabilityPanel';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 let n = 0;
 export default function AvailabilityPage() {
@@ -13,9 +14,10 @@ export default function AvailabilityPage() {
   const [qualityId, setQualityId] = useState('');
   const [lines, setLines] = useState([]);
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     Promise.all([repo.listQualities(), repo.listShades()]).then(([q, s]) => { setQualities(q); setShades(s); }).catch((e) => setError(e.message)).finally(() => setLoading(false));
-  }, []);
+  }, [dbVersion]);
 
   const ids = lines.map((l) => Number(l.shade_id)).filter(Boolean);
   const { data, error: aErr } = useAvailability(qualityId, ids);

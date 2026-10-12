@@ -122,7 +122,7 @@ export default function ReceiveProgramPage() {
             {program.lines.map(l => (
               <span key={l.id} className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
                 <span className="w-3 h-3 rounded-sm border border-slate-200" style={{ backgroundColor: l.hex }} />
-                Shade {l.shade_no}: <strong>{l.taka_count - l.received}</strong> pending of {l.taka_count}
+                {l.item_code ? l.item_code + ' · ' : ''}Shade {l.shade_no}: <strong>{l.taka_count - l.received}</strong> pending of {l.taka_count}
               </span>
             ))}
           </div>

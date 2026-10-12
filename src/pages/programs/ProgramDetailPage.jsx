@@ -4,6 +4,7 @@ import { PageHeader, Card, Button, Badge, Table, Th, Td, Drawer } from '../../co
 import { ArrowLeft, Printer, Scissors, Palette, CheckCircle } from 'lucide-react';
 import { fmtM, fmtPct, fmtDate } from '../../lib/format';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 export default function ProgramDetailPage() {
   const { id } = useParams();
@@ -11,6 +12,7 @@ export default function ProgramDetailPage() {
   const [loading, setLoading] = useState(true);
   const [program, setProgram] = useState(null);
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     async function load() {
       try {
@@ -24,7 +26,7 @@ export default function ProgramDetailPage() {
       }
     }
     load();
-  }, [id]);
+  }, [id, dbVersion]);
 
   const handlePrint = () => window.print();
 
@@ -135,13 +137,14 @@ export default function ProgramDetailPage() {
 
       <Card className="print:shadow-none print:border-none print:rounded-none">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-xl print:hidden">
-          <h3 className="font-semibold text-slate-900">Shade Lines</h3>
+          <h3 className="font-semibold text-slate-900">Item Lines</h3>
         </div>
         <div className="print:p-0">
           <Table className="print:text-lg">
             <thead>
               <tr className="print:border-b-2 print:border-slate-900">
                 <Th className="print:text-slate-900 w-24 text-center">Swatch</Th>
+                <Th className="print:text-slate-900">Item code</Th>
                 <Th className="print:text-slate-900">Shade No</Th>
                 <Th className="print:text-slate-900">Name</Th>
                 <Th className="text-right print:text-slate-900">Takas to Dye</Th>
@@ -155,6 +158,7 @@ export default function ProgramDetailPage() {
                   <Td className="text-center print:py-4">
                     <div className="w-12 h-12 mx-auto rounded-md shadow-inner border border-slate-200" style={{ backgroundColor: l.hex || '#ccc', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} />
                   </Td>
+                  <Td className="font-mono font-bold text-slate-900 text-lg print:text-2xl">{l.item_code || '—'}</Td>
                   <Td className="font-bold text-slate-900 text-lg print:text-2xl">{l.shade_no}</Td>
                   <Td className="text-slate-600 font-medium">{l.shade_name || '-'}</Td>
                   <Td className="text-right font-bold text-lg print:text-2xl">{l.taka_count}</Td>
@@ -167,7 +171,7 @@ export default function ProgramDetailPage() {
                 </tr>
               ))}
               <tr className="bg-slate-50 font-bold print:bg-white print:border-t-2 print:border-slate-900 print:text-xl">
-                <Td colSpan={3} className="text-right py-4">Total</Td>
+                <Td colSpan={4} className="text-right py-4">Total</Td>
                 <Td className="text-right py-4 text-xl">{program.total_takas}</Td>
                 <Td className="text-right py-4">{fmtM(program.grey_m)}</Td>
                 <Td className="print:hidden"></Td>

@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PageHeader, Card, Button, Badge, Table, Th, Td, Drawer } from '../../components/ui';
-import { ArrowLeft, ShoppingCart, CheckCircle, PackageSearch } from 'lucide-react';
+import { PageHeader, Card, Button, Badge, Table, Th, Td, Drawer, Alert } from '../../components/ui';
+import { fmtM } from '../../lib/format';
+import { ArrowLeft, ShoppingCart, CheckCircle, PackageSearch, Pencil } from 'lucide-react';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 export default function OrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
+  const [msg, setMsg] = useState({ tone: 'error', text: '' });
 
   const load = async () => {
     try {
@@ -22,16 +25,19 @@ export default function OrderDetailPage() {
     }
   };
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     load();
-  }, [id]);
+  }, [id, dbVersion]);
 
   const handleAllocate = async (lineId) => {
     try {
-      await repo.allocateOrder(id);
+      setMsg({ tone: 'error', text: '' });
+      const res = await repo.allocateOrder(id);
+      setMsg({ tone: res.short ? 'info' : 'success', text: res.allocated ? `${res.allocated} taka(s) allocated${res.short ? `; ${res.short} line(s) could not be fully covered — not enough ready (folded) stock.` : '.'}` : 'No ready (folded) stock is available for the pending lines.' });
       load();
     } catch (err) {
-      alert(err.message);
+      setMsg({ tone: 'error', text: err.message });
     }
   };
 
@@ -41,11 +47,14 @@ export default function OrderDetailPage() {
       await repo.closeOrder(id);
       load();
     } catch (err) {
-      alert(err.message);
+      setMsg({ tone: 'error', text: err.message });
     }
   };
 
   if (loading || !order) return <div className="p-12 text-center text-slate-500">Loading...</div>;
+
+  // progress: by takas when the order has takas, otherwise by meters
+  const pct = order.total_takas > 0 ? Math.min(100, (order.allocated / order.total_takas) * 100) : order.total_meters > 0 ? Math.min(100, (order.allocated_m / order.total_meters) * 100) : 0;
 
   return (
     <Drawer isOpen={true} onClose={() => navigate('/orders')}>
@@ -55,9 +64,11 @@ export default function OrderDetailPage() {
         description={`Placed on ${new Date(order.date).toLocaleDateString()}`}
       >
         <Button variant="ghost" onClick={() => navigate('/orders')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
+        <Button variant="outline" onClick={() => navigate(`/orders/${id}/edit`)}><Pencil className="w-4 h-4 mr-2" /> Edit</Button>
         {order.status !== 'DONE' && <Button variant="outline" onClick={handleClose}><CheckCircle className="w-4 h-4 mr-2" /> Close Order</Button>}
       </PageHeader>
 
+      <Alert tone={msg.tone}>{msg.text}</Alert>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="p-6 md:col-span-3">
           <div className="flex justify-between items-start mb-6">
@@ -79,12 +90,12 @@ export default function OrderDetailPage() {
               <div className="text-lg font-bold text-slate-900">{order.nick_name}</div>
             </div>
             <div className="bg-slate-50 p-4 rounded-xl">
-              <div className="text-sm text-slate-500 mb-1">Ordered Takas</div>
-              <div className="text-2xl font-bold text-slate-900">{order.total_takas}</div>
+              <div className="text-sm text-slate-500 mb-1">Ordered</div>
+              <div className="text-2xl font-bold text-slate-900">{order.total_takas > 0 ? `${order.total_takas} tk` : ''}{order.total_takas > 0 && order.total_meters > 0 ? ' · ' : ''}{order.total_meters > 0 ? `${fmtM(order.total_meters)} m` : ''}</div>
             </div>
             <div className="bg-slate-50 p-4 rounded-xl">
               <div className="text-sm text-slate-500 mb-1">Allocated</div>
-              <div className="text-2xl font-bold text-slate-900 text-emerald-600">{order.allocated}</div>
+              <div className="text-2xl font-bold text-slate-900 text-emerald-600">{order.allocated} tk · {fmtM(order.allocated_m)} m</div>
             </div>
           </div>
           
@@ -100,10 +111,10 @@ export default function OrderDetailPage() {
           <div className="relative w-32 h-32 flex items-center justify-center mb-4">
             <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
               <path className="text-slate-100" strokeWidth="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              <path className="text-emerald-500 transition-all duration-1000 ease-out" strokeDasharray={`${Math.min(100, (order.allocated / order.total_takas) * 100 || 0)}, 100`} strokeWidth="3" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path className="text-emerald-500 transition-all duration-1000 ease-out" strokeDasharray={`${pct || 0}, 100`} strokeWidth="3" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-bold text-slate-900">{Math.round((order.allocated / order.total_takas) * 100) || 0}%</span>
+              <span className="text-2xl font-bold text-slate-900">{Math.round(pct) || 0}%</span>
               <span className="text-xs text-slate-500">allocated</span>
             </div>
           </div>
@@ -118,9 +129,9 @@ export default function OrderDetailPage() {
           <thead>
             <tr>
               <Th className="w-20 text-center">Swatch</Th>
-              <Th>Shade No</Th>
-              <Th>Name</Th>
-              <Th className="text-right">Ordered Takas</Th>
+              <Th>Item code</Th>
+              <Th>Shade</Th>
+              <Th className="text-right">Ordered</Th>
               <Th className="text-right">Allocated</Th>
               <Th className="text-right">Status</Th>
               <Th></Th>
@@ -128,16 +139,16 @@ export default function OrderDetailPage() {
           </thead>
           <tbody>
             {order.lines?.map((l) => {
-              const done = l.allocated >= l.taka_count;
+              const done = repo.orderLineDone(l);
               return (
                 <tr key={l.id} className="hover:bg-slate-50">
                   <Td className="text-center">
                     <div className="w-8 h-8 mx-auto rounded-md shadow-inner border border-slate-200" style={{ backgroundColor: l.hex || '#ccc' }} />
                   </Td>
-                  <Td className="font-bold text-slate-900">{l.shade_no}</Td>
-                  <Td className="text-slate-600 font-medium">{l.shade_name || '-'}</Td>
-                  <Td className="text-right font-medium">{l.taka_count}</Td>
-                  <Td className="text-right font-medium text-emerald-600">{l.allocated}</Td>
+                  <Td className="font-mono font-bold text-slate-900">{l.item_code || '—'}</Td>
+                  <Td className="text-slate-600 font-medium">{l.shade_no}{l.shade_name ? ` · ${l.shade_name}` : ''}</Td>
+                  <Td className="text-right font-medium">{l.taka_count > 0 ? `${l.taka_count} tk` : ''}{l.taka_count > 0 && l.meters > 0 ? ' · ' : ''}{l.meters > 0 ? `${fmtM(l.meters)} m` : ''}</Td>
+                  <Td className="text-right font-medium text-emerald-600">{l.allocated} tk · {fmtM(l.allocated_m)} m</Td>
                   <Td className="text-right">
                     {done ? <span className="text-xs font-bold text-emerald-500 uppercase">Fulfilled</span> : <span className="text-xs font-bold text-amber-500 uppercase">Pending</span>}
                   </Td>

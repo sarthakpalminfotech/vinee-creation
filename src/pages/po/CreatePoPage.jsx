@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Select, Field, Drawer, Alert, useAction } from '../../components/ui';
 import { ArrowLeft, Save, FileImage } from 'lucide-react';
 import * as repo from '../../db/repo';
 
 export default function CreatePoPage() {
   const navigate = useNavigate();
+  const { id: editId } = useParams();
+  const isEdit = !!editId;
+  const [receiptsExist, setReceiptsExist] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const { busy, error, run } = useAction();
@@ -31,6 +34,15 @@ export default function CreatePoPage() {
         const [grps, quals] = await Promise.all([repo.listWeaverGroups(), repo.listQualities()]);
         setGroups(grps);
         setQualities(quals);
+        if (isEdit) {
+          const po = await repo.getPO(Number(editId));
+          if (!po) throw new Error('PO not found');
+          setReceiptsExist(po.receipt_count > 0);
+          setFormData({
+            po_no: po.po_no, po_date: po.po_date || '', group_id: String(po.group_id), quality_id: String(po.quality_id), meters: String(po.meters),
+            rate: String(po.rate), taka_length: String(po.taka_length || 100), due_date: po.due_date || '', notes: po.notes || '', image_url: po.image_url || '',
+          });
+        }
       } catch (e) {
         setLoadError(e.message);
       } finally {
@@ -38,7 +50,7 @@ export default function CreatePoPage() {
       }
     }
     load();
-  }, []);
+  }, [editId]);
 
   const handleQualityChange = (e) => {
     const qid = e.target.value;
@@ -55,6 +67,11 @@ export default function CreatePoPage() {
     run(async () => {
       if (!formData.po_no.trim()) throw new Error('Enter the PO number from the paper PO');
       if (!formData.group_id || !formData.quality_id || !formData.meters || !formData.rate) throw new Error('Please fill all required fields');
+      if (isEdit) {
+        await repo.updatePO(Number(editId), formData);
+        navigate(`/po/${editId}`);
+        return;
+      }
       const id = await repo.createPO(formData);
       navigate(`/po/${id}`);
     });
@@ -72,10 +89,10 @@ export default function CreatePoPage() {
     <Drawer isOpen={true} onClose={() => navigate('/po')}>
       <div className="space-y-6 max-w-4xl mx-auto">
         <PageHeader 
-          title="Create Grey PO" 
-          description="Issue a new grey fabric purchase order to a weaver."
+          title={isEdit ? `Edit PO ${formData.po_no}` : 'Create Grey PO'} 
+          description={isEdit ? 'Change the purchase order. Party group and quality are fixed once grey was received against it.' : 'Issue a new grey fabric purchase order to a weaver.'}
         >
-          <Button variant="ghost" onClick={() => navigate('/po')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
+          <Button variant="ghost" onClick={() => navigate(isEdit ? `/po/${editId}` : '/po')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
         </PageHeader>
 
       <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -90,7 +107,7 @@ export default function CreatePoPage() {
                 <Input type="date" required value={formData.po_date} onChange={e => setFormData(p => ({ ...p, po_date: e.target.value }))} />
               </Field>
               <Field label="Party Group *">
-                <Select required value={formData.group_id} onChange={e => setFormData(p => ({ ...p, group_id: e.target.value }))}>
+                <Select required disabled={receiptsExist} value={formData.group_id} onChange={e => setFormData(p => ({ ...p, group_id: e.target.value }))}>
                   <option value="">Select Group...</option>
                   {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                 </Select>
@@ -105,7 +122,7 @@ export default function CreatePoPage() {
             <h3 className="text-lg font-semibold text-slate-900 mb-4">Item & Pricing</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Quality *">
-                <Select required value={formData.quality_id} onChange={handleQualityChange}>
+                <Select required disabled={receiptsExist} value={formData.quality_id} onChange={handleQualityChange}>
                   <option value="">Select Quality...</option>
                   {qualities.map(q => <option key={q.id} value={q.id}>{q.original_name} ({q.nick_name})</option>)}
                 </Select>
@@ -162,7 +179,7 @@ export default function CreatePoPage() {
             <div className="mt-8 pt-6 border-t border-primary-200/50">
               <Button type="submit" disabled={busy} className="w-full h-12 text-base shadow-lg shadow-primary-500/20">
                 <Save className="w-5 h-5 mr-2" />
-                {busy ? 'Saving…' : 'Create PO'}
+                {busy ? 'Saving…' : isEdit ? 'Save changes' : 'Create PO'}
               </Button>
             </div>
           </Card>

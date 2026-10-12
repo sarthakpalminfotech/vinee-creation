@@ -1,7 +1,8 @@
 // End-to-end scenario (audit §4). Runs against a fresh in-memory DB. Usage: node tests/e2e.mjs
 import { loadRepo } from './harness.mjs'
 
-const { repo, close } = await loadRepo()
+const { repo, client, close } = await loadRepo()
+if (client.mode !== 'local') { console.error('Refusing to run tests against a remote database'); process.exit(1) }
 let pass = 0, fail = 0
 const check = (name, cond, extra = '') => { (cond ? pass++ : fail++); console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}${cond ? '' : '  ' + extra}`) }
 const eq = (name, a, b) => check(name, JSON.stringify(a) === JSON.stringify(b), `got ${JSON.stringify(a)} expected ${JSON.stringify(b)}`)
@@ -20,8 +21,10 @@ try {
   const fOther = await M('weavers', { group_id: other, name: 'Other Firm' })
   const q = await M('qualities', { original_name: 'Nylon', nick_name: 'Gold Lava', taka_length: 100 })
   const m1 = await M('mills', { name: 'M1' })
-  const rackA = await M('locations', { shop: 'Shop 6065', rack: 'Rack-A' })
-  const rackB = await M('locations', { shop: 'Shop 6065', rack: 'Rack-B' })
+  const br = await M('branches', { name: 'Surat Godown' })
+  const br2 = await M('branches', { name: 'Bhiwandi Branch' })
+  const rackA = await M('locations', { branch_id: br, shop: 'Shop 6065', rack: 'Rack-A' })
+  const rackB = await M('locations', { branch_id: br, shop: 'Shop 6065', rack: 'Rack-B' })
   const chart = await M('shade_charts', { name: 'A' })
   const sh = {}
   for (const [n, hex] of [['36', '#7B1E3A'], ['37', '#2747B8'], ['38', '#138A8A'], ['39', '#1E9E5A']]) sh[n] = await M('shades', { chart_id: chart, number: n, name: n, hex })
@@ -34,7 +37,7 @@ try {
   // 3. Receipt 1: 48 takas to godown from Ganesh Fabrics
   const meters1 = Array.from({ length: 48 }, (_, i) => 96 + (i % 9))
   meters1[0] = 94.69; meters1[1] = 102.58; meters1[2] = 103.5
-  const r1 = await repo.createReceipt({ po_id: po, weaver_id: fFab, challan_no: 'GF-1', date: '2026-01-05', destination: 'GODOWN', takas: meters1.map((m, i) => ({ taka_no: i + 1, meter: m })) })
+  const r1 = await repo.createReceipt({ po_id: po, weaver_id: fFab, challan_no: 'GF-1', date: '2026-01-05', destination: 'GODOWN', branch_id: br, takas: meters1.map((m, i) => ({ taka_no: i + 1, meter: m })) })
   const r1total = sum(meters1)
   p = await repo.getPO(po)
   eq('PO PARTIAL after receipt 1', p.status, 'PARTIAL')
@@ -42,8 +45,8 @@ try {
   const rc1 = await repo.getReceipt(r1)
   eq('receipt 1 total exact', rc1.total_m, r1total)
   eq('exact decimals kept (94.69)', rc1.takas[0].grey_meter, 94.69)
-  await expectThrow('duplicate taka no in challan rejected', () => repo.createReceipt({ po_id: po, weaver_id: fFab, challan_no: 'GF-DUP', date: '2026-01-05', destination: 'GODOWN', takas: [{ taka_no: 1, meter: 99 }, { taka_no: 1, meter: 98 }] }))
-  await expectThrow('party outside PO group rejected', () => repo.createReceipt({ po_id: po, weaver_id: fOther, challan_no: 'X-1', date: '2026-01-05', destination: 'GODOWN', takas: [{ taka_no: 1, meter: 99 }] }))
+  await expectThrow('duplicate taka no in challan rejected', () => repo.createReceipt({ po_id: po, weaver_id: fFab, challan_no: 'GF-DUP', date: '2026-01-05', destination: 'GODOWN', branch_id: br, takas: [{ taka_no: 1, meter: 99 }, { taka_no: 1, meter: 98 }] }))
+  await expectThrow('party outside PO group rejected', () => repo.createReceipt({ po_id: po, weaver_id: fOther, challan_no: 'X-1', date: '2026-01-05', destination: 'GODOWN', branch_id: br, takas: [{ taka_no: 1, meter: 99 }] }))
   await expectThrow('direct receipt without mill rejected', () => repo.createReceipt({ po_id: po, weaver_id: fFas, challan_no: 'X-2', date: '2026-01-05', destination: 'MILL', takas: [{ taka_no: 1, meter: 99 }] }))
   eq('failed receipts left no rows', (await repo.listReceipts()).length, 1)
 
@@ -78,7 +81,7 @@ try {
   eq('failed dispatch left 12 in godown', (await repo.listTakas("WHERE t.status='GODOWN_GREY'")).length, 12)
   if (repo.getPickList) {
     const pl = await repo.getPickList(dc)
-    eq('pick list groups by rack', pl.map((g) => [g.label, g.takas.length]), [['Shop 6065 / Rack-A', 24], ['Shop 6065 / Rack-B', 12]])
+    eq('pick list groups by rack', pl.map((g) => [g.label, g.takas.length]), [['Surat Godown / Shop 6065 / Rack-A', 24], ['Surat Godown / Shop 6065 / Rack-B', 12]])
   } else check('pick list grouped by rack', false, 'no getPickList')
 
   // 7. Program 48 takas: 24 x 37, 24 x 39
@@ -123,7 +126,7 @@ try {
   eq('PO closed short status', p.status, 'CLOSED')
   eq('PO shortfall meters', p.shortfall, r2(50000 - p.received_m))
   check('PO shortfall % shown', p.shortfall_pct != null && Math.abs(p.shortfall_pct - p.shortfall / 500) < 0.01, `pct ${p.shortfall_pct}`)
-  await expectThrow('closed PO refuses receipts', () => repo.createReceipt({ po_id: po, weaver_id: fFab, challan_no: 'LATE', date: '2026-02-01', destination: 'GODOWN', takas: [{ taka_no: 999, meter: 99 }] }))
+  await expectThrow('closed PO refuses receipts', () => repo.createReceipt({ po_id: po, weaver_id: fFab, challan_no: 'LATE', date: '2026-02-01', destination: 'GODOWN', branch_id: br, takas: [{ taka_no: 999, meter: 99 }] }))
 
   // 11. Inventory reconciles
   if (repo.inventoryCounts) {
@@ -136,15 +139,15 @@ try {
   eq('no taka lost', (await repo.listTakas()).length, 68)
 
   // extra rules: masters validation, PO status RECEIVED vs CLOSED, restrictions on delete
-  await expectThrow('duplicate rack rejected', () => M('locations', { shop: 'shop 6065', rack: 'rack-a' }))
+  await expectThrow('duplicate rack rejected', () => M('locations', { branch_id: br, shop: 'shop 6065', rack: 'rack-a' }))
   await expectThrow('bad shade colour rejected', () => M('shades', { chart_id: chart, number: '40', name: 'x', hex: 'red' }))
   await expectThrow('duplicate shade number in chart rejected', () => M('shades', { chart_id: chart, number: '37', name: 'x', hex: '#000000' }))
   await expectThrow('master in use cannot be deleted', () => repo.removeMaster('mills', m1))
   const po2 = await repo.createPO({ po_no: 'FULL-1', po_date: '2026-02-01', group_id: grp, quality_id: q, meters: 200, rate: 3, taka_length: 100 })
   await expectThrow('duplicate PO number rejected', () => repo.createPO({ po_no: ' full-1 ', po_date: '2026-02-01', group_id: grp, quality_id: q, meters: 200, rate: 3 }))
-  await repo.createReceipt({ po_id: po2, weaver_id: fFab, challan_no: 'F-1', date: '2026-02-02', destination: 'GODOWN', takas: [{ taka_no: 1, meter: 100.5 }, { taka_no: 2, meter: 99.5 }] })
+  await repo.createReceipt({ po_id: po2, weaver_id: fFab, challan_no: 'F-1', date: '2026-02-02', destination: 'GODOWN', branch_id: br, takas: [{ taka_no: 1, meter: 100.5 }, { taka_no: 2, meter: 99.5 }] })
   eq('fully received PO status', (await repo.getPO(po2)).status, 'RECEIVED')
-  await expectThrow('more than 2 decimals rejected', () => repo.createReceipt({ po_id: po2, weaver_id: fFab, challan_no: 'F-2', date: '2026-02-02', destination: 'GODOWN', takas: [{ taka_no: 1, meter: 99.123 }] }))
+  await expectThrow('more than 2 decimals rejected', () => repo.createReceipt({ po_id: po2, weaver_id: fFab, challan_no: 'F-2', date: '2026-02-02', destination: 'GODOWN', branch_id: br, takas: [{ taka_no: 1, meter: 99.123 }] }))
   eq('inventory still reconciles', (await repo.inventoryCounts()).reconciled, true)
 
   // 12. availability for Gold Lava, shades 37 and 39
@@ -152,6 +155,54 @@ try {
     const av = await repo.availabilityDetail(q, [sh['37'], sh['39']])
     check('availability has per-shade sections', av.shades.length === 2 && !!av.greyAtMill && !!av.greyAtPlace)
   } else check('availability detail', false, 'no availabilityDetail')
+
+  // 13. branches: grey is received at several branches; racks belong to one branch
+  const rackC = await M('locations', { branch_id: br2, shop: 'Shop 6070', rack: 'Rack-A' })
+  await expectThrow('GODOWN receipt without a branch rejected', () => repo.createReceipt({ po_id: po2, weaver_id: fFab, challan_no: 'NB-1', date: '2026-02-03', destination: 'GODOWN', takas: [{ taka_no: 9, meter: 50 }] }))
+  await expectThrow('rack of another branch rejected at receipt', () => repo.createReceipt({ po_id: po2, weaver_id: fFab, challan_no: 'NB-2', date: '2026-02-03', destination: 'GODOWN', branch_id: br, location_id: rackC, takas: [{ taka_no: 9, meter: 50 }] }))
+  const rB2 = await repo.createReceipt({ po_id: po2, weaver_id: fFab, challan_no: 'B2-1', date: '2026-02-03', destination: 'GODOWN', branch_id: br2, location_id: rackC, takas: [{ taka_no: 1, meter: 80 }, { taka_no: 2, meter: 70.5 }] })
+  const b2takas = await repo.listTakas('WHERE t.receipt_id=?', [rB2])
+  check('takas carry their branch', b2takas.every((t) => t.branch_name === 'Bhiwandi Branch' && t.branch_id === br2))
+  await expectThrow('cannot rack a taka into another branch', () => repo.assignLocation([b2takas[0].id], rackA))
+  const gb = await repo.godownByBranch()
+  eq('godown stock split by branch', gb.map((b) => [b.name, b.takas]).sort(), [['Bhiwandi Branch', 2], ['Surat Godown', 14]])
+  eq('inventory filter by branch', (await repo.inventoryList('godown', { branch_id: br2 })).length, 2)
+
+  // 14. item master: unique code per quality + colour, used by programs and orders
+  eq('generate items for a chart', await repo.generateItems(q, chart), 4)
+  eq('generate is idempotent', await repo.generateItems(q, chart), 0)
+  const items = await repo.listItems()
+  eq('item codes unique + readable', items.map((i) => i.code), ['GL-36', 'GL-37', 'GL-38', 'GL-39'])
+  await expectThrow('duplicate item code rejected', () => M('items', { code: 'gl-37', quality_id: q }))
+  await expectThrow('same quality + shade twice rejected', () => M('items', { code: 'OTHER', quality_id: q, shade_id: sh['37'] }))
+  const item37 = items.find((i) => i.code === 'GL-37').id
+
+  // 15. order in meters (and takas) + edit
+  const cust = await M('customers', { name: 'Radhe' })
+  const oid = await repo.createOrder({ order_no: 'SO-M1', customer_id: cust, quality_id: q, lines: [{ item_id: item37, meters: 250 }] })
+  let ord = await repo.getOrder(oid)
+  eq('order line stores meters, 0 takas', [ord.lines[0].meters, ord.lines[0].taka_count, ord.lines[0].item_code], [250, 0, 'GL-37'])
+  await expectThrow('order line needs takas or meters', () => repo.createOrder({ order_no: 'SO-M2', customer_id: cust, quality_id: q, lines: [{ item_id: item37 }] }))
+  await repo.updateOrder(oid, { order_no: 'SO-M1', date: '2026-03-01', customer_id: cust, quality_id: q, notes: 'edited', lines: [{ item_id: item37, taka_count: 3, meters: 300 }] })
+  ord = await repo.getOrder(oid)
+  eq('order edited (notes, takas+meters)', [ord.notes, ord.lines[0].taka_count, ord.lines[0].meters], ['edited', 3, 300])
+
+  // 16. edit PO and challan
+  await repo.updatePO(po2, { po_no: 'FULL-1', po_date: '2026-02-01', group_id: grp, quality_id: q, meters: 400, rate: 3.25, taka_length: 100, notes: 'revised' })
+  eq('PO edited', [(await repo.getPO(po2)).meters, (await repo.getPO(po2)).rate, (await repo.getPO(po2)).notes], [400, 3.25, 'revised'])
+  await expectThrow('PO number must stay unique on edit', () => repo.updatePO(po2, { po_no: 'GT-118', group_id: grp, quality_id: q, meters: 400, rate: 3 }))
+  await expectThrow('PO group locked once received', () => repo.updatePO(po2, { po_no: 'FULL-1', group_id: other, quality_id: q, meters: 400, rate: 3 }))
+  await repo.updateReceipt(rB2, { challan_no: 'B2-1X', date: '2026-02-04', weaver_id: fFab, notes: 'n', takas: [{ id: b2takas[0].id, taka_no: 1, meter: 81.25 }, { taka_no: 3, meter: 60 }] })
+  const rb2 = await repo.getReceipt(rB2)
+  eq('challan edited: header + takas', [rb2.challan_no, rb2.takas.map((t) => [t.taka_no, t.grey_meter])], ['B2-1X', [['1', 81.25], ['3', 60]]])
+  await repo.updateReceipt(rB2, { challan_no: 'B2-1X', date: '2026-02-04', weaver_id: fFab, branch_id: br, takas: rb2.takas.map((t) => ({ id: t.id, taka_no: t.taka_no, meter: t.grey_meter })) })
+  eq('challan moved to another branch', (await repo.getReceipt(rB2)).takas.every((t) => t.branch_id === br && !t.location_id), true)
+  const sentIds = ids1.slice(0, 2)
+  const r1full = await repo.getReceipt(r1)
+  await expectThrow('takas of a challan already sent to a mill are locked', () => repo.updateReceipt(r1, { challan_no: 'GF-1', date: '2026-01-05', weaver_id: fFab, takas: r1full.takas.map((t) => ({ id: t.id, taka_no: t.taka_no, meter: 1 })) }))
+  await repo.updateReceipt(r1, { challan_no: 'GF-1', date: '2026-01-05', weaver_id: fFab, notes: 'header only' })
+  eq('header of a processed challan can still change', (await repo.getReceipt(r1)).notes, 'header only')
+  eq('inventory reconciles after edits', (await repo.inventoryCounts()).reconciled, true)
 } catch (e) {
   fail++; console.log('FAIL  unexpected error:', e.stack || e)
 }

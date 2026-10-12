@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Select, Field, Empty, Drawer, Alert, useAction } from '../../components/ui';
 import { ArrowLeft, Save, Plus, Trash2, Scissors } from 'lucide-react';
 import * as repo from '../../db/repo';
@@ -10,7 +10,7 @@ export default function CreateProgramPage() {
   const [mills, setMills] = useState([]);
   const [qualities, setQualities] = useState([]);
   const [charts, setCharts] = useState([]);
-  const [shades, setShades] = useState([]);
+  const [items, setItems] = useState([]);
   
   const [formData, setFormData] = useState({
     mill_id: '',
@@ -29,16 +29,16 @@ export default function CreateProgramPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [allMills, allQualities, allCharts, allShades] = await Promise.all([
+        const [allMills, allQualities, allCharts, allItems] = await Promise.all([
           repo.listMills(),
           repo.listQualities(),
           repo.listCharts(),
-          repo.listShades()
+          repo.listItems()
         ]);
         setMills(allMills);
         setQualities(allQualities);
         setCharts(allCharts);
-        setShades(allShades);
+        setItems(allItems);
       } catch (e) {
         setLoadError(e.message);
       } finally {
@@ -61,13 +61,14 @@ export default function CreateProgramPage() {
     checkAvailability();
   }, [formData.mill_id, formData.quality_id]);
 
-  const availableShades = useMemo(() => {
-    if (!formData.chart_id) return [];
-    return shades.filter(s => s.chart_id.toString() === formData.chart_id);
-  }, [shades, formData.chart_id]);
+  // an item = quality + colour with a unique code; the program is written in item codes
+  const availableItems = useMemo(() => {
+    if (!formData.chart_id || !formData.quality_id) return [];
+    return items.filter(i => i.shade_id && String(i.quality_id) === formData.quality_id && String(i.chart_id) === formData.chart_id);
+  }, [items, formData.chart_id, formData.quality_id]);
 
   const addLine = () => {
-    setLines([...lines, { id: Math.random().toString(36).substr(2, 9), shade_id: '', taka_count: '' }]);
+    setLines([...lines, { id: Math.random().toString(36).substr(2, 9), item_id: '', taka_count: '' }]);
   };
 
   const removeLine = (id) => {
@@ -81,14 +82,14 @@ export default function CreateProgramPage() {
   const totalTakas = lines.reduce((s, l) => s + (parseInt(l.taka_count) || 0), 0);
 
   const splitDiff = programTotal === '' ? 0 : (parseInt(programTotal) || 0) - totalTakas;
-  const usedShades = new Set(lines.map(l => l.shade_id).filter(Boolean));
+  const usedItems = new Set(lines.map(l => l.item_id).filter(Boolean));
 
   const handleSave = (e) => {
     e.preventDefault();
     run(async () => {
       if (!formData.mill_id || !formData.quality_id || !formData.chart_id) throw new Error('Please select mill, quality, and shade chart');
-      const validLines = lines.filter(l => l.shade_id && parseInt(l.taka_count) > 0);
-      if (validLines.length === 0) throw new Error('Please add at least one valid shade line');
+      const validLines = lines.filter(l => l.item_id && parseInt(l.taka_count) > 0);
+      if (validLines.length === 0) throw new Error('Please add at least one item line');
       if (programTotal !== '' && splitDiff !== 0) throw new Error(`The shade split adds up to ${totalTakas} but the program is for ${programTotal} takas`);
       if (totalTakas > availableTakas.length) throw new Error(`Only ${availableTakas.length} takas available. You assigned ${totalTakas}.`);
       const id = await repo.createProgram({ ...formData, total_takas: programTotal, lines: validLines });
@@ -120,7 +121,7 @@ export default function CreateProgramPage() {
                 </Select>
               </Field>
               <Field label="Quality *">
-                <Select required value={formData.quality_id} onChange={e => setFormData(p => ({ ...p, quality_id: e.target.value }))}>
+                <Select required value={formData.quality_id} onChange={e => { setFormData(p => ({ ...p, quality_id: e.target.value })); setLines([]); }}>
                   <option value="">Select Quality...</option>
                   {qualities.map(q => <option key={q.id} value={q.id}>{q.nick_name}</option>)}
                 </Select>
@@ -172,15 +173,19 @@ export default function CreateProgramPage() {
 
           <Card className="p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-slate-900">Shade Lines</h3>
-              <Button type="button" variant="outline" size="sm" onClick={addLine} disabled={!formData.chart_id}>
+              <h3 className="text-lg font-semibold text-slate-900">Item Lines <span className="text-sm font-normal text-slate-500">(item code = quality + colour)</span></h3>
+              <Button type="button" variant="outline" size="sm" onClick={addLine} disabled={!formData.chart_id || !formData.quality_id || availableItems.length === 0}>
                 <Plus className="w-4 h-4 mr-2" /> Add Line
               </Button>
             </div>
 
-            {!formData.chart_id ? (
+            {!formData.chart_id || !formData.quality_id ? (
               <div className="py-8 text-center text-slate-500 border-2 border-dashed border-slate-200 rounded-xl">
-                Select a shade chart above to add lines.
+                Select the quality and a shade chart above to add lines.
+              </div>
+            ) : availableItems.length === 0 ? (
+              <div className="py-8 text-center text-slate-500 border-2 border-dashed border-amber-200 bg-amber-50 rounded-xl">
+                No item codes exist for this quality in this chart. Create them in <Link to="/masters/items" className="text-primary-600 underline">Masters → Items</Link> (there is a one-click generator).
               </div>
             ) : (
               <div className="space-y-3">
@@ -188,20 +193,20 @@ export default function CreateProgramPage() {
                   <div key={l.id} className="flex gap-4 items-start p-3 bg-slate-50 border border-slate-200 rounded-xl">
                     <div className="w-8 pt-2 text-center font-medium text-slate-400">{idx + 1}</div>
                     <div className="flex-1">
-                      <Field label="Shade">
+                      <Field label="Item code">
                         <div className="relative">
-                          {l.shade_id && (
+                          {l.item_id && (
                             <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-slate-200 shadow-sm" 
-                              style={{ backgroundColor: availableShades.find(s => s.id.toString() === l.shade_id)?.hex || '#ccc' }} 
+                              style={{ backgroundColor: availableItems.find(i => i.id.toString() === l.item_id)?.hex || '#ccc' }} 
                             />
                           )}
                           <Select 
-                            className={l.shade_id ? 'pl-9' : ''}
-                            value={l.shade_id} 
-                            onChange={e => updateLine(l.id, 'shade_id', e.target.value)}
+                            className={l.item_id ? 'pl-9' : ''}
+                            value={l.item_id} 
+                            onChange={e => updateLine(l.id, 'item_id', e.target.value)}
                           >
-                            <option value="">Select shade...</option>
-                            {availableShades.filter(s => s.id.toString() === l.shade_id || !usedShades.has(s.id.toString())).map(s => <option key={s.id} value={s.id}>{s.number} {s.name ? `- ${s.name}` : ''}</option>)}
+                            <option value="">Select item...</option>
+                            {availableItems.filter(i => i.id.toString() === l.item_id || !usedItems.has(i.id.toString())).map(i => <option key={i.id} value={i.id}>{i.code} · {i.shade_no}{i.shade_name ? ` ${i.shade_name}` : ''}</option>)}
                           </Select>
                         </div>
                       </Field>
@@ -217,7 +222,7 @@ export default function CreateProgramPage() {
                   </div>
                 ))}
                 {lines.length === 0 && (
-                  <Empty title="No shades added" description="Add lines to instruct which shades to dye." />
+                  <Empty title="No items added" description="Add lines to instruct which item codes (colours) to dye." />
                 )}
               </div>
             )}

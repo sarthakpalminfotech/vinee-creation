@@ -4,6 +4,7 @@ import { PageHeader, Card, Select, Input, Table, Th, Td, Empty, Alert, LoadState
 import { Boxes, CheckCircle2 } from 'lucide-react';
 import { fmtM, fmtInt } from '../../lib/format';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 const VIEWS = ['godown', 'mill', 'dyeing', 'finished'];
 const natural = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true });
@@ -15,19 +16,21 @@ export default function InventoryPage() {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [masters, setMasters] = useState({ qualities: [], groups: [], mills: [], shades: [], locations: [] });
-  const [f, setF] = useState({ quality_id: '', group_id: '', weaver_id: '', mill_id: '', shade_id: '', location_id: '' });
+  const [masters, setMasters] = useState({ qualities: [], groups: [], mills: [], shades: [], locations: [], branches: [] });
+  const [byBranch, setByBranch] = useState([]);
+  const [f, setF] = useState({ quality_id: '', group_id: '', weaver_id: '', mill_id: '', shade_id: '', location_id: '', branch_id: '' });
   const [search, setSearch] = useState('');
 
   useEffect(() => {
     (async () => {
       try {
-        const [qualities, groups, mills, shades, locations] = await Promise.all([repo.listQualities(), repo.listWeaverGroups(), repo.listMills(), repo.listShades(), repo.listLocations()]);
-        setMasters({ qualities, groups, mills, shades, locations });
+        const [qualities, groups, mills, shades, locations, branches] = await Promise.all([repo.listQualities(), repo.listWeaverGroups(), repo.listMills(), repo.listShades(), repo.listLocations(), repo.listBranches()]);
+        setMasters({ qualities, groups, mills, shades, locations, branches });
       } catch (e) { setError(e.message); }
     })();
   }, []);
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -35,15 +38,15 @@ export default function InventoryPage() {
     const eff = { ...f };
     if (view === 'godown') { eff.mill_id = ''; eff.shade_id = ''; }
     if (view === 'mill') eff.shade_id = '';
-    if (view !== 'godown') eff.location_id = '';
-    Promise.all([repo.inventoryCounts(), repo.inventoryList(view, eff)])
-      .then(([c, r]) => { if (live) { setCounts(c); setRows(r); setError(''); } })
+    if (view !== 'godown') { eff.location_id = ''; eff.branch_id = ''; }
+    Promise.all([repo.inventoryCounts(), repo.inventoryList(view, eff), repo.godownByBranch()])
+      .then(([c, r, b]) => { if (live) { setCounts(c); setRows(r); setByBranch(b); setError(''); } })
       .catch((e) => live && setError(e.message))
       .finally(() => live && setLoading(false));
     return () => { live = false; };
-  }, [view, f]);
+  }, [view, f, dbVersion]);
 
-  const set = (k, v) => setF((p) => ({ ...p, [k]: v, ...(k === 'group_id' ? { weaver_id: '' } : {}) }));
+  const set = (k, v) => setF((p) => ({ ...p, [k]: v, ...(k === 'group_id' ? { weaver_id: '' } : {}), ...(k === 'branch_id' ? { location_id: '' } : {}) }));
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (q ? rows.filter((t) => `${t.challan_no}/${t.taka_no} ${t.nick_name} ${t.weaver_name}`.toLowerCase().includes(q)) : rows)
@@ -64,6 +67,7 @@ export default function InventoryPage() {
 
   const group = masters.groups.find((g) => String(g.id) === f.group_id);
   const parties = masters.groups.flatMap((g) => g.firms.map((w) => ({ ...w, group_name: g.name }))).filter((w) => !f.group_id || String(w.group_id) === f.group_id);
+  const racks = masters.locations.filter((l) => !f.branch_id || String(l.branch_id) === f.branch_id);
   const showShade = view === 'dyeing' || view === 'finished';
   const showMill = view !== 'godown';
 
@@ -87,6 +91,22 @@ export default function InventoryPage() {
           </button>
         ))}
       </div>
+
+      {view === 'godown' && byBranch.length > 0 && (
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Grey in our godowns — branch wise</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {byBranch.map((b) => (
+              <button key={b.id ?? 'none'} type="button" onClick={() => set('branch_id', String(f.branch_id) === String(b.id) ? '' : String(b.id ?? ''))}
+                className={`text-left rounded-xl border p-3 bg-white transition ${String(f.branch_id) === String(b.id) ? 'border-primary-500 ring-2 ring-primary-200' : 'border-slate-200 hover:border-slate-300'}`}>
+                <div className="text-sm font-medium text-slate-800 truncate">{b.name}</div>
+                <div className="text-xl font-bold text-slate-900">{fmtInt(b.takas)} <span className="text-sm font-normal text-slate-500">taka</span></div>
+                <div className="text-xs text-slate-600">{fmtM(b.m)} m{b.unassigned ? ` · ${b.unassigned} without rack` : ''}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Card>
         <div className="p-4 border-b border-slate-100 flex flex-wrap gap-3 items-center bg-slate-50/50">
@@ -115,9 +135,15 @@ export default function InventoryPage() {
             </Select>
           )}
           {view === 'godown' && (
+            <Select className="w-44" value={f.branch_id} onChange={(e) => set('branch_id', e.target.value)}>
+              <option value="">All branches</option>
+              {masters.branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </Select>
+          )}
+          {view === 'godown' && (
             <Select className="w-48" value={f.location_id} onChange={(e) => set('location_id', e.target.value)}>
               <option value="">All racks</option>
-              {masters.locations.map((l) => <option key={l.id} value={l.id}>{repo.locLabel(l.shop, l.rack)}</option>)}
+              {racks.map((l) => <option key={l.id} value={l.id}>{repo.locLabel(l.shop, l.rack, f.branch_id ? '' : l.branch_name)}</option>)}
             </Select>
           )}
           <Input className="w-44" placeholder="Search taka / party…" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -143,6 +169,7 @@ export default function InventoryPage() {
               <thead>
                 <tr>
                   <Th>Taka</Th><Th>Quality</Th><Th>Party</Th>
+                  {view === 'godown' && <Th>Branch</Th>}
                   {view === 'godown' && <Th>Rack</Th>}
                   {showMill && <Th>Mill</Th>}
                   {showShade && <Th>Shade</Th>}
@@ -157,16 +184,17 @@ export default function InventoryPage() {
                     <Td className="font-medium text-slate-900">{t.label}</Td>
                     <Td>{t.nick_name}</Td>
                     <Td>{t.weaver_name}</Td>
+                    {view === 'godown' && <Td>{t.branch_name || <span className="text-amber-600 text-xs">—</span>}</Td>}
                     {view === 'godown' && <Td>{t.location_id ? repo.locLabel(t.shop, t.rack) : <span className="text-amber-600 text-xs font-medium">Unassigned</span>}</Td>}
                     {showMill && <Td>{t.mill_name || '—'}</Td>}
-                    {showShade && <Td><span className="inline-flex items-center gap-2"><span className="w-3 h-3 rounded-sm border border-slate-200" style={{ backgroundColor: t.shade_hex || '#ccc' }} />{t.shade_no || '—'}</span></Td>}
+                    {showShade && <Td><span className="inline-flex items-center gap-2"><span className="w-3 h-3 rounded-sm border border-slate-200" style={{ backgroundColor: t.shade_hex || '#ccc' }} />{t.item_code ? <span className="font-mono font-semibold">{t.item_code}</span> : (t.shade_no || '—')}</span></Td>}
                     {view === 'dyeing' && <Td>{t.program_no}</Td>}
                     {view === 'finished' && <Td>{t.status === 'FOLDED' ? 'Folded (ready)' : 'Not folded yet'}</Td>}
                     <Td className="text-right">{fmtM(t.stock_m)}</Td>
                   </tr>
                 ))}
                 <tr className="bg-slate-50 font-bold">
-                  <Td colSpan={3 + (view === 'godown' ? 1 : 0) + (showMill ? 1 : 0) + (showShade ? 1 : 0) + (view === 'dyeing' || view === 'finished' ? 1 : 0)}>Total</Td>
+                  <Td colSpan={3 + (view === 'godown' ? 2 : 0) + (showMill ? 1 : 0) + (showShade ? 1 : 0) + (view === 'dyeing' || view === 'finished' ? 1 : 0)}>Total</Td>
                   <Td className="text-right">{fmtM(totals.m)}</Td>
                 </tr>
               </tbody>

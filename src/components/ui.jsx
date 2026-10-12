@@ -76,18 +76,10 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
   );
 }
 
-export function Drawer({ isOpen, onClose, children }) {
+/** Full-screen page body (replaces the old slide-in drawer). Rendered inline inside the app shell. */
+export function Drawer({ isOpen = true, children }) {
   if (!isOpen) return null;
-  return createPortal(
-    <div className="fixed inset-0 z-[100] flex justify-end print-drawer">
-      <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm transition-opacity print:hidden" onClick={onClose} />
-      <div className="relative w-full md:w-[700px] lg:w-[900px] xl:w-[1000px] h-full bg-slate-50 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 overflow-y-auto print-drawer-panel">
-        <div className="p-4 md:p-6 lg:p-8">
-          {children}
-        </div>
-      </div>
-    </div>
-  , document.body);
+  return <div className="w-full">{children}</div>;
 }
 
 export function Badge({ children, variant = 'gray', className = '' }) {

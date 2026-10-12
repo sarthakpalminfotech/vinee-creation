@@ -4,6 +4,7 @@ import { PageHeader, Card, Button, Table, Th, Td, Drawer, Alert } from '../../co
 import { ArrowLeft, Printer, ShieldCheck, ClipboardList } from 'lucide-react';
 import { fmtM, fmtDate } from '../../lib/format';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 // Mill-facing document: the quality is ALWAYS shown by its nickname (never the weaver's original name).
 export default function DispatchDetailPage() {
@@ -15,6 +16,7 @@ export default function DispatchDetailPage() {
   const [pick, setPick] = useState([]);
   const [printView, setPrintView] = useState('challan'); // what window.print() outputs
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     (async () => {
       try {
@@ -24,7 +26,7 @@ export default function DispatchDetailPage() {
         setPick(await repo.getPickList(id));
       } catch (e) { setError(e.message); } finally { setLoading(false); }
     })();
-  }, [id, navigate]);
+  }, [id, navigate, dbVersion]);
 
   const print = (view) => { setPrintView(view); setTimeout(() => window.print(), 50); };
 

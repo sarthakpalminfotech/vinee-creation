@@ -3,6 +3,7 @@ import { PageHeader, Card, Button, Input, Table, Th, Td, Alert, LoadState, Pager
 import { fmtM } from '../../lib/format';
 import { Search, Scissors } from 'lucide-react';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 export default function FoldingPage() {
   const [loading, setLoading] = useState(true);
@@ -36,9 +37,10 @@ export default function FoldingPage() {
     }
   }
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     load();
-  }, []);
+  }, [dbVersion]);
 
   const toggleRow = (tId) => {
     setTakas(takas.map(r => r.id === tId ? { ...r, selected: !r.selected } : r));

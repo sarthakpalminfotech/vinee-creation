@@ -28,15 +28,30 @@ export const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_takas_line ON takas(program_line_id)`,
   `CREATE INDEX IF NOT EXISTS idx_takas_location ON takas(location_id)`,
   `CREATE INDEX IF NOT EXISTS idx_receipts_po ON grey_receipts(po_id)`,
+  // --- branches + item master (additive) ---
+  `CREATE TABLE IF NOT EXISTS branches (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, city TEXT, address TEXT, phone TEXT)`,
+  `CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL, quality_id INTEGER NOT NULL, shade_id INTEGER, notes TEXT)`,
+]
+
+// Columns added after the first release: applied with ALTER TABLE only when missing (see client.js).
+export const COLUMNS = [
+  ['locations', 'branch_id', 'INTEGER'],
+  ['grey_receipts', 'branch_id', 'INTEGER'],
+  ['takas', 'branch_id', 'INTEGER'],
+  ['program_lines', 'item_id', 'INTEGER'],
+  ['order_lines', 'item_id', 'INTEGER'],
+  ['order_lines', 'meters', 'REAL'],
 ]
 
 // Run after SCHEMA; each is allowed to fail (e.g. old data violates the new unique rule).
 export const MIGRATIONS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_takas_receipt_no ON takas(receipt_id, taka_no)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_pos_no ON grey_pos(po_no)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_items_code ON items(code)`,
+  `CREATE INDEX IF NOT EXISTS idx_takas_branch ON takas(branch_id)`,
 ]
 
 export const TABLES = [
-  'taka_moves', 'order_lines', 'orders', 'finished_receipts', 'program_lines', 'programs', 'mill_dispatches', 'takas',
+  'taka_moves', 'items', 'branches', 'order_lines', 'orders', 'finished_receipts', 'program_lines', 'programs', 'mill_dispatches', 'takas',
   'grey_receipts', 'grey_pos', 'shades', 'shade_charts', 'locations', 'qualities', 'customers', 'mills', 'weavers', 'weaver_groups',
 ]

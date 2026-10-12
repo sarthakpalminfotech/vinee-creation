@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Outlet } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Table, Th, Td, Badge, Empty, LoadState, Pager, usePaged } from '../../components/ui';
 import { fmtM, fmtDate } from '../../lib/format';
 import { Plus, Search, ChevronRight, ShoppingCart } from 'lucide-react';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 export default function OrderListPage() {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ export default function OrderListPage() {
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     async function load() {
       try {
@@ -24,7 +26,7 @@ export default function OrderListPage() {
       }
     }
     load();
-  }, []);
+  }, [dbVersion]);
 
   const filtered = orders.filter(o => 
     o.order_no.toLowerCase().includes(search.toLowerCase()) || 
@@ -66,7 +68,7 @@ export default function OrderListPage() {
               <Th>Date</Th>
               <Th>Customer</Th>
               <Th>Quality</Th>
-              <Th className="text-right">Ordered Takas</Th>
+              <Th className="text-right">Ordered</Th>
               <Th className="text-right">Allocated</Th>
               <Th>Status</Th>
               <Th></Th>
@@ -89,10 +91,10 @@ export default function OrderListPage() {
                 <Td>
                   <div className="font-medium text-slate-900">{o.nick_name}</div>
                 </Td>
-                <Td className="text-right font-medium">{o.total_takas}</Td>
+                <Td className="text-right font-medium">{o.total_takas > 0 ? `${o.total_takas} tk` : ''}{o.total_takas > 0 && o.total_meters > 0 ? ' · ' : ''}{o.total_meters > 0 ? `${fmtM(o.total_meters)} m` : ''}</Td>
                 <Td className="text-right">
-                  <span className={`font-medium ${o.allocated >= o.total_takas ? 'text-emerald-600' : 'text-slate-600'}`}>
-                    {o.allocated}
+                  <span className={`font-medium ${o.lines.length > 0 && o.lines.every(repo.orderLineDone) ? 'text-emerald-600' : 'text-slate-600'}`}>
+                    {o.allocated} tk{o.total_meters > 0 ? ` · ${fmtM(o.allocated_m)} m` : ''}
                   </span>
                 </Td>
                 <Td>{getStatusBadge(o.status)}</Td>
@@ -112,7 +114,6 @@ export default function OrderListPage() {
         </Table>
         <Pager paged={paged} />
       </Card>
-      <Outlet />
     </div>
   );
 }

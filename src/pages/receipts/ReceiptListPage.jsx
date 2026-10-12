@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Outlet } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Table, Th, Td, Empty, LoadState, Pager, usePaged } from '../../components/ui';
 import { fmtM, fmtDate } from '../../lib/format';
 import { Plus, Search, ChevronRight, FileText, MapPin, ShieldCheck } from 'lucide-react';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 export default function ReceiptListPage() {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ export default function ReceiptListPage() {
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     async function load() {
       try {
@@ -24,7 +26,7 @@ export default function ReceiptListPage() {
       }
     }
     load();
-  }, []);
+  }, [dbVersion]);
 
   const filtered = receipts.filter(r => 
     r.challan_no.toLowerCase().includes(search.toLowerCase()) || 
@@ -86,7 +88,7 @@ export default function ReceiptListPage() {
                 <Td>
                   {r.destination === 'MILL' ? 
                     <span className="inline-flex items-center text-sky-600 text-xs font-medium bg-sky-50 px-2 py-1 rounded"><ShieldCheck className="w-3.5 h-3.5 mr-1" /> {r.mill_name || 'Mill'}</span> : 
-                    <span className="inline-flex items-center text-slate-600 text-xs font-medium bg-slate-100 px-2 py-1 rounded"><MapPin className="w-3.5 h-3.5 mr-1" /> Godown</span>
+                    <span className="inline-flex items-center text-slate-600 text-xs font-medium bg-slate-100 px-2 py-1 rounded"><MapPin className="w-3.5 h-3.5 mr-1" /> {r.branch_name || 'Godown'}</span>
                   }
                 </Td>
                 <Td className="text-right font-medium">{r.taka_count}</Td>
@@ -107,7 +109,6 @@ export default function ReceiptListPage() {
         </Table>
         <Pager paged={paged} />
       </Card>
-      <Outlet />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { PageHeader, Card, Button, Table, Th, Td, Select, Input, Empty, Modal, A
 import { MapPin, CheckCircle, History, ChevronRight } from 'lucide-react';
 import { fmtM } from '../../lib/format';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 const natural = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true });
 
@@ -14,6 +15,7 @@ export default function LocationAssignmentPage() {
   const [selected, setSelected] = useState(() => new Set());
   const [qualityFilter, setQualityFilter] = useState('');
   const [challanFilter, setChallanFilter] = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('UNASSIGNED');
   const [search, setSearch] = useState('');
   const [firstN, setFirstN] = useState('');
@@ -30,19 +32,26 @@ export default function LocationAssignmentPage() {
       setTakas(all); setLocations(locs); setLoadError('');
     } catch (e) { setLoadError(e.message); } finally { setLoading(false); }
   }
-  useEffect(() => { load(); }, []);
+  const dbVersion = useDbVersion();
+  useEffect(() => { load(); }, [dbVersion]);
 
+  const branches = useMemo(() => [...new Map(takas.map((t) => [String(t.branch_id ?? ''), t.branch_name || 'No branch'])).entries()], [takas]);
+  const filterRacks = useMemo(() => locations.filter((l) => !branchFilter || String(l.branch_id) === branchFilter), [locations, branchFilter]);
+  // racks the selected takas may go to: only those of their branch
+  const selBranchIds = useMemo(() => new Set(takas.filter((t) => selected.has(t.id)).map((t) => String(t.branch_id ?? ''))), [takas, selected]);
+  const targetRacks = useMemo(() => (selBranchIds.size ? locations.filter((l) => selBranchIds.size === 1 && selBranchIds.has(String(l.branch_id))) : locations), [locations, selBranchIds]);
   const qualities = useMemo(() => [...new Map(takas.map((t) => [t.quality_id, t.nick_name])).entries()], [takas]);
   const challans = useMemo(() => [...new Map(takas.filter((t) => !qualityFilter || String(t.quality_id) === qualityFilter).map((t) => [t.receipt_id, `${t.challan_no} · ${t.weaver_name}`])).entries()], [takas, qualityFilter]);
 
   const filtered = useMemo(() => takas.filter((t) => {
     if (qualityFilter && String(t.quality_id) !== qualityFilter) return false;
     if (challanFilter && String(t.receipt_id) !== challanFilter) return false;
+    if (branchFilter && String(t.branch_id) !== branchFilter) return false;
     if (locationFilter === 'UNASSIGNED' && t.location_id) return false;
     if (locationFilter !== 'ALL' && locationFilter !== 'UNASSIGNED' && String(t.location_id) !== locationFilter) return false;
     if (search && !`${t.challan_no}/${t.taka_no}`.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
-  }).sort((a, b) => natural(a.challan_no, b.challan_no) || natural(a.taka_no, b.taka_no)), [takas, qualityFilter, challanFilter, locationFilter, search]);
+  }).sort((a, b) => natural(a.challan_no, b.challan_no) || natural(a.taka_no, b.taka_no)), [takas, qualityFilter, challanFilter, branchFilter, locationFilter, search]);
 
   const paged = usePaged(filtered, 100);
 
@@ -50,7 +59,7 @@ export default function LocationAssignmentPage() {
   const byLocation = useMemo(() => repo.groupPickList(takas), [takas]);
   const byShop = useMemo(() => {
     const m = new Map();
-    for (const g of byLocation) { const k = g.shop || ''; if (!m.has(k)) m.set(k, { shop: k, racks: [], count: 0, meters: 0 }); const s = m.get(k); s.racks.push(g); s.count += g.count; s.meters += g.meters; }
+    for (const g of byLocation) { const k = g.branch || ''; if (!m.has(k)) m.set(k, { shop: k, racks: [], count: 0, meters: 0 }); const s = m.get(k); s.racks.push(g); s.count += g.count; s.meters += g.meters; }
     return [...m.values()];
   }, [byLocation]);
 
@@ -95,9 +104,10 @@ export default function LocationAssignmentPage() {
         <div className="w-64">
           <Select value={target} onChange={(e) => setTarget(e.target.value)} id="target-rack">
             <option value="">Select rack…</option>
-            {locations.map((l) => <option key={l.id} value={l.id}>{repo.locLabel(l.shop, l.rack)}</option>)}
+            {targetRacks.map((l) => <option key={l.id} value={l.id}>{repo.locLabel(l.shop, l.rack, l.branch_name)}</option>)}
           </Select>
         </div>
+        {selBranchIds.size > 1 && <span className="text-xs text-amber-600">Selected takas are from different branches — assign one branch at a time.</span>}
         <Button id="apply-rack" onClick={apply} disabled={busy || !target || selected.size === 0}><CheckCircle className="w-4 h-4 mr-2" />{busy ? 'Saving…' : `Apply (${selected.size})`}</Button>
         <Alert>{error}</Alert>
         <Alert tone="success">{msg}</Alert>
@@ -113,10 +123,14 @@ export default function LocationAssignmentPage() {
             <option value="">All challans</option>
             {challans.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
           </Select>
+          <Select className="w-44" value={branchFilter} onChange={(e) => { setBranchFilter(e.target.value); setLocationFilter('UNASSIGNED'); }}>
+            <option value="">All branches</option>
+            {branches.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </Select>
           <Select className="w-48" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
             <option value="ALL">All racks (assigned + unassigned)</option>
             <option value="UNASSIGNED">Unassigned only</option>
-            {locations.map((l) => <option key={l.id} value={l.id}>{repo.locLabel(l.shop, l.rack)}</option>)}
+            {filterRacks.map((l) => <option key={l.id} value={l.id}>{repo.locLabel(l.shop, l.rack, branchFilter ? '' : l.branch_name)}</option>)}
           </Select>
           <Input className="w-40" placeholder="Search taka…" value={search} onChange={(e) => setSearch(e.target.value)} />
           <div className="flex-1 flex flex-wrap justify-end gap-2 items-center">
@@ -136,7 +150,7 @@ export default function LocationAssignmentPage() {
               <thead>
                 <tr>
                   <Th className="w-12"><input type="checkbox" aria-label="Select all shown" checked={filtered.length > 0 && filtered.every((t) => selected.has(t.id))} onChange={(e) => (e.target.checked ? selectAllShown() : clear())} /></Th>
-                  <Th>Taka</Th><Th>Quality</Th><Th>Party</Th><Th className="text-right">Meters</Th><Th>Current rack</Th><Th></Th>
+                  <Th>Taka</Th><Th>Quality</Th><Th>Party</Th><Th>Branch</Th><Th className="text-right">Meters</Th><Th>Current rack</Th><Th></Th>
                 </tr>
               </thead>
               <tbody>
@@ -146,6 +160,7 @@ export default function LocationAssignmentPage() {
                     <Td className="font-medium text-slate-900">{t.challan_no}/{t.taka_no}</Td>
                     <Td>{t.nick_name}</Td>
                     <Td>{t.weaver_name}</Td>
+                    <Td>{t.branch_name || '—'}</Td>
                     <Td className="text-right">{fmtM(t.grey_meter)}</Td>
                     <Td>{t.location_id ? repo.locLabel(t.shop, t.rack) : <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">Unassigned</span>}</Td>
                     <Td className="text-right" onClick={(e) => e.stopPropagation()}>
@@ -161,13 +176,13 @@ export default function LocationAssignmentPage() {
       </Card>
 
       <Card>
-        <div className="p-4 border-b border-slate-100 font-semibold text-slate-900">Grey stock by location</div>
+        <div className="p-4 border-b border-slate-100 font-semibold text-slate-900">Grey stock by branch and rack</div>
         {byShop.length === 0 ? <div className="p-6 text-sm text-slate-500">No grey stock in our godown.</div> : (
           <div className="divide-y divide-slate-100">
             {byShop.map((s) => (
               <div key={s.shop || 'none'} className="p-4">
                 <div className="flex justify-between font-medium text-slate-900">
-                  <span>{s.shop || 'No rack assigned'}</span><span>{s.count} taka · {fmtM(s.meters)} m</span>
+                  <span>{s.shop || 'No branch'}</span><span>{s.count} taka · {fmtM(s.meters)} m</span>
                 </div>
                 <div className="mt-2 space-y-1">
                   {s.racks.map((g) => {
@@ -176,7 +191,7 @@ export default function LocationAssignmentPage() {
                       <div key={g.key}>
                         <button type="button" className="w-full flex items-center justify-between text-sm py-1.5 px-2 rounded hover:bg-slate-50"
                           onClick={() => setOpenRacks((p) => { const n = new Set(p); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; })}>
-                          <span className="flex items-center gap-1"><ChevronRight className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`} />{g.rack || 'Unassigned'}</span>
+                          <span className="flex items-center gap-1"><ChevronRight className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`} />{g.rack ? `${g.shop} / ${g.rack}` : 'No rack assigned'}</span>
                           <span className="text-slate-600">{g.count} taka · {fmtM(g.meters)} m</span>
                         </button>
                         {open && <div className="ml-6 text-xs text-slate-500 flex flex-wrap gap-1.5 py-1">{g.takas.map((t) => <span key={t.id} className="px-1.5 py-0.5 bg-slate-100 rounded">{t.challan_no}/{t.taka_no} · {fmtM(t.grey_meter)}</span>)}</div>}

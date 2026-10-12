@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link, Outlet } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Select, Badge, Empty, Table, Th, Td, LoadState, Pager, usePaged } from '../../components/ui';
 import { fmtM, fmtPct, fmtDate } from '../../lib/format';
 import { Plus, Search, ChevronRight, FileText } from 'lucide-react';
 import * as repo from '../../db/repo';
+import { useDbVersion } from '../../lib/live';
 
 export default function PoListPage() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export default function PoListPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
+  const dbVersion = useDbVersion();
   useEffect(() => {
     async function load() {
       try {
@@ -25,7 +27,7 @@ export default function PoListPage() {
       }
     }
     load();
-  }, []);
+  }, [dbVersion]);
 
   const filtered = pos.filter(p => {
     const sMatch = p.po_no.toLowerCase().includes(search.toLowerCase()) || 
@@ -129,7 +131,6 @@ export default function PoListPage() {
         </Table>
         <Pager paged={paged} />
       </Card>
-      <Outlet />
     </div>
   );
 }

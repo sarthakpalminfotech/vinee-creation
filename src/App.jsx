@@ -52,26 +52,24 @@ export default function App() {
           <Route path="masters/:tab" element={<MastersPage />} />
           <Route path="masters" element={<Navigate to="/masters/weavers" replace />} />
           
-          <Route path="po" element={<PoListPage />}>
-            <Route path="new" element={<CreatePoPage />} />
-            <Route path=":id" element={<PoDetailPage />} />
-          </Route>
+          <Route path="po" element={<PoListPage />} />
+          <Route path="po/new" element={<CreatePoPage />} />
+          <Route path="po/:id" element={<PoDetailPage />} />
+          <Route path="po/:id/edit" element={<CreatePoPage />} />
           
-          <Route path="receipts" element={<ReceiptListPage />}>
-            <Route path="new" element={<CreateReceiptPage />} />
-            <Route path=":id" element={<ReceiptDetailPage />} />
-          </Route>
+          <Route path="receipts" element={<ReceiptListPage />} />
+          <Route path="receipts/new" element={<CreateReceiptPage />} />
+          <Route path="receipts/:id" element={<ReceiptDetailPage />} />
+          <Route path="receipts/:id/edit" element={<CreateReceiptPage />} />
 
-          <Route path="dispatch" element={<DispatchListPage />}>
-            <Route path="new" element={<CreateDispatchPage />} />
-            <Route path=":id" element={<DispatchDetailPage />} />
-          </Route>
+          <Route path="dispatch" element={<DispatchListPage />} />
+          <Route path="dispatch/new" element={<CreateDispatchPage />} />
+          <Route path="dispatch/:id" element={<DispatchDetailPage />} />
 
-          <Route path="programs" element={<ProgramListPage />}>
-            <Route path="new" element={<CreateProgramPage />} />
-            <Route path=":id" element={<ProgramDetailPage />} />
-            <Route path=":id/receive" element={<ReceiveProgramPage />} />
-          </Route>
+          <Route path="programs" element={<ProgramListPage />} />
+          <Route path="programs/new" element={<CreateProgramPage />} />
+          <Route path="programs/:id" element={<ProgramDetailPage />} />
+          <Route path="programs/:id/receive" element={<ReceiveProgramPage />} />
 
           <Route path="inventory" element={<InventoryPage />} />
           <Route path="availability" element={<AvailabilityPage />} />
@@ -79,10 +77,10 @@ export default function App() {
           <Route path="folding" element={<FoldingPage />} />
           <Route path="assignment" element={<LocationAssignmentPage />} />
 
-          <Route path="orders" element={<OrderListPage />}>
-            <Route path="new" element={<CreateOrderPage />} />
-            <Route path=":id" element={<OrderDetailPage />} />
-          </Route>
+          <Route path="orders" element={<OrderListPage />} />
+          <Route path="orders/new" element={<CreateOrderPage />} />
+          <Route path="orders/:id" element={<OrderDetailPage />} />
+          <Route path="orders/:id/edit" element={<CreateOrderPage />} />
           {/* Add other routes here as they are built */}
         </Route>
       </Routes>

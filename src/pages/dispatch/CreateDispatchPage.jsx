@@ -20,6 +20,7 @@ export default function CreateDispatchPage() {
   const [selectedTakaIds, setSelectedTakaIds] = useState(new Set());
   const [qualityFilter, setQualityFilter] = useState('');
   const [challanFilter, setChallanFilter] = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
   const [loadError, setLoadError] = useState('');
   const { busy, error, run } = useAction();
 
@@ -41,6 +42,7 @@ export default function CreateDispatchPage() {
     load();
   }, []);
 
+  const branches = useMemo(() => [...new Map(availableTakas.map(t => [String(t.branch_id ?? ''), t.branch_name || 'No branch'])).entries()], [availableTakas]);
   const qualities = useMemo(() => {
     const qs = new Map();
     availableTakas.forEach(t => qs.set(t.quality_id, t.nick_name));
@@ -49,14 +51,14 @@ export default function CreateDispatchPage() {
 
   const challans = useMemo(() => {
     const m = new Map();
-    const pool = qualityFilter ? availableTakas.filter(t => t.quality_id.toString() === qualityFilter) : availableTakas;
+    const pool = availableTakas.filter(t => (!qualityFilter || t.quality_id.toString() === qualityFilter) && (!branchFilter || String(t.branch_id) === branchFilter));
     pool.forEach(t => { if (!m.has(t.receipt_id)) m.set(t.receipt_id, `${t.challan_no} · ${t.weaver_name} (${pool.filter(x => x.receipt_id === t.receipt_id).length} in godown)`); });
     return [...m.entries()];
-  }, [availableTakas, qualityFilter]);
+  }, [availableTakas, qualityFilter, branchFilter]);
 
   const filteredTakas = useMemo(() => availableTakas.filter(t =>
-    (!qualityFilter || t.quality_id.toString() === qualityFilter) && (!challanFilter || t.receipt_id.toString() === challanFilter)
-  ), [availableTakas, qualityFilter, challanFilter]);
+    (!qualityFilter || t.quality_id.toString() === qualityFilter) && (!challanFilter || t.receipt_id.toString() === challanFilter) && (!branchFilter || String(t.branch_id) === branchFilter)
+  ), [availableTakas, qualityFilter, challanFilter, branchFilter]);
   const paged = usePaged(filteredTakas, 100);
   const picked = useMemo(() => availableTakas.filter(t => selectedTakaIds.has(t.id)), [availableTakas, selectedTakaIds]);
   const pickList = useMemo(() => repo.groupPickList(picked), [picked]);
@@ -138,6 +140,10 @@ export default function CreateDispatchPage() {
                 <h3 className="font-semibold text-slate-900">Select Takas</h3>
                 <Badge variant="primary">{availableTakas.length} in Godown</Badge>
               </div>
+              <Select className="w-full sm:w-44 bg-white" value={branchFilter} onChange={e => { setBranchFilter(e.target.value); setChallanFilter(''); }}>
+                <option value="">All branches</option>
+                {branches.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </Select>
               <Select className="w-full sm:w-48 bg-white" value={qualityFilter} onChange={e => { setQualityFilter(e.target.value); setChallanFilter(''); }}>
                 <option value="">All Qualities</option>
                 {qualities.map(q => <option key={q.id} value={q.id}>{q.name}</option>)}
@@ -170,6 +176,7 @@ export default function CreateDispatchPage() {
                     <Th>Taka No</Th>
                     <Th>Quality</Th>
                     <Th>Meters</Th>
+                    <Th>Branch</Th>
                     <Th>Location</Th>
                   </tr>
                 </thead>
@@ -187,6 +194,7 @@ export default function CreateDispatchPage() {
                       <Td className="font-medium text-slate-900">{t.challan_no}/{t.taka_no}</Td>
                       <Td>{t.nick_name}</Td>
                       <Td>{fmtM(t.grey_meter)} m</Td>
+                      <Td>{t.branch_name || '—'}</Td>
                       <Td>
                         {t.location_id ? <span className="text-slate-600 text-sm">{repo.locLabel(t.shop, t.rack)}</span> : <span className="text-amber-600 text-xs font-medium">Unassigned</span>}
                       </Td>
@@ -194,7 +202,7 @@ export default function CreateDispatchPage() {
                   ))}
                   {filteredTakas.length === 0 && (
                     <tr>
-                      <Td colSpan={5} className="py-8">
+                      <Td colSpan={6} className="py-8">
                         <Empty title="No takas available" description={qualityFilter ? "No takas matching this quality." : "Godown is empty."} />
                       </Td>
                     </tr>
