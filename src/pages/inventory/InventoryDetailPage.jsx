@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { PageHeader, Card, Select, Input, Table, Th, Td, Empty, LoadState, Pager, usePaged, Field } from '../../components/ui';
-import { Qty, StatTile, Chip, Swatch, SectionTitle } from '../../components/kit';
+import { Qty, StatTile, Chip, Swatch, SectionTitle, SearchToggle, FilterButton } from '../../components/kit';
 import { ArrowLeft, Boxes } from 'lucide-react';
 import { fmtInt, fmtM } from '../../lib/format';
 import * as repo from '../../db/repo';
@@ -163,47 +163,43 @@ export default function InventoryDetailPage() {
       <section>
         <SectionTitle title="Takas" hint={`${fmtInt(shownTotal.takas)} of ${fmtInt(total.takas)} shown`} />
         <Card>
-          <div className="p-4 border-b border-slate-100 bg-slate-50/60 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 items-end">
-            <Field label="Party group">
-              <Select value={f.group_id} onChange={(e) => set('group_id', e.target.value)}>
-                <option value="">All groups</option>
-                {groups.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
-              </Select>
-            </Field>
-            <Field label="Party">
-              <Select value={f.weaver_id} onChange={(e) => set('weaver_id', e.target.value)}>
-                <option value="">All parties</option>
-                {parties.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-              </Select>
-            </Field>
-            {showBranch && (
-              <Field label="Branch">
-                <Select value={f.branch_id} onChange={(e) => set('branch_id', e.target.value)}>
-                  <option value="">All branches</option>
-                  {branches.map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
-                </Select>
-              </Field>
-            )}
-            {showBranch && (
-              <Field label="Rack">
-                <Select value={f.location_id} onChange={(e) => set('location_id', e.target.value)}>
-                  <option value="">All racks</option>
-                  {racks.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-                </Select>
-              </Field>
-            )}
-            {showMill && (
-              <Field label="Mill">
-                <Select value={f.mill_id} onChange={(e) => set('mill_id', e.target.value)}>
-                  <option value="">All mills</option>
-                  {mills.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
-                </Select>
-              </Field>
-            )}
-            <Field label="Search">
-              <Input placeholder="Challan / taka / party…" value={f.search} onChange={(e) => set('search', e.target.value)} />
-            </Field>
-            {filterCount > 0 && <button type="button" className="text-xs text-primary-600 hover:underline text-left pb-2" onClick={() => setF({ group_id: '', weaver_id: '', branch_id: '', location_id: '', mill_id: '', shade_id: '', search: '' })}>Clear {filterCount} filter{filterCount > 1 ? 's' : ''}</button>}
+          <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-3">
+            <div className="text-sm text-slate-500">{filterCount > 0 ? `${filterCount} filter${filterCount > 1 ? 's' : ''} active` : 'Showing everything'}</div>
+            <div className="flex items-center gap-2">
+              <SearchToggle value={f.search} onChange={(v) => set('search', v)} placeholder="Challan / taka / party…" />
+              <FilterButton count={filterCount - (f.search ? 1 : 0) - (f.shade_id ? 1 : 0)} title="Filter takas" onClear={() => setF((p) => ({ group_id: '', weaver_id: '', branch_id: '', location_id: '', mill_id: '', shade_id: p.shade_id, search: p.search }))}>
+              <Field label="Party group">
+                  <Select value={f.group_id} onChange={(e) => set('group_id', e.target.value)}>
+                    <option value="">All groups</option>
+                    {groups.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
+                  </Select>
+                </Field>
+              <Field label="Party">
+                  <Select value={f.weaver_id} onChange={(e) => set('weaver_id', e.target.value)}>
+                    <option value="">All parties</option>
+                    {parties.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                  </Select>
+                </Field>
+              {showBranch && (<Field label="Branch">
+                    <Select value={f.branch_id} onChange={(e) => set('branch_id', e.target.value)}>
+                      <option value="">All branches</option>
+                      {branches.map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
+                    </Select>
+                  </Field>)}
+              {showBranch && (<Field label="Rack">
+                    <Select value={f.location_id} onChange={(e) => set('location_id', e.target.value)}>
+                      <option value="">All racks</option>
+                      {racks.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                    </Select>
+                  </Field>)}
+              {showMill && (<Field label="Mill">
+                    <Select value={f.mill_id} onChange={(e) => set('mill_id', e.target.value)}>
+                      <option value="">All mills</option>
+                      {mills.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+                    </Select>
+                  </Field>)}
+              </FilterButton>
+            </div>
           </div>
 
           {shown.length === 0 ? (

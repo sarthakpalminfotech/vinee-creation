@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Select, Badge, Empty, Table, Th, Td, LoadState, Pager, usePaged } from '../../components/ui';
 import { fmtM, fmtPct, fmtDate } from '../../lib/format';
-import { Plus, Search, ChevronRight, FileText } from 'lucide-react';
+import { Plus, FileText } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
+import { SearchToggle } from '../../components/kit';
 
 export default function PoListPage() {
   const navigate = useNavigate();
@@ -44,29 +45,18 @@ export default function PoListPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Grey Purchase Orders" description="Manage all fabric orders placed to weavers.">
-        <Button onClick={() => navigate('/po/new')}><Plus className="w-4 h-4 mr-2" /> Create PO</Button>
-      </PageHeader>
-
-      <Card className="p-4 flex flex-col sm:flex-row gap-4 bg-slate-50 border-b-0 rounded-b-none">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input 
-            className="pl-9 bg-white" 
-            placeholder="Search PO, weaver, or quality..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
-        <Select className="w-full sm:w-48 bg-white" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+        <SearchToggle value={search} onChange={setSearch} placeholder="Search PO, weaver, or quality..." />
+        <Select className="w-44 sm:w-52" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="">All Status</option>
           <option value="OPEN">Open</option>
           <option value="PARTIAL">Partly received</option>
           <option value="RECEIVED">Received</option>
           <option value="CLOSED">Closed (short)</option>
         </Select>
-      </Card>
+        <Button onClick={() => navigate('/po/new')}><Plus className="w-4 h-4 mr-2" /> Create PO</Button>
+      </PageHeader>
 
-      <Card className="rounded-t-none border-t-0">
+      <Card>
         <Table>
           <thead>
             <tr>
@@ -77,7 +67,6 @@ export default function PoListPage() {
               <Th className="text-right">Meters</Th>
               <Th>Progress</Th>
               <Th>Status</Th>
-              <Th></Th>
             </tr>
           </thead>
           <tbody>
@@ -115,14 +104,11 @@ export default function PoListPage() {
                   </div>
                 </Td>
                 <Td>{getStatusBadge(p.status)}</Td>
-                <Td className="text-right">
-                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-primary-600 inline-block" />
-                </Td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <Td colSpan={8} className="py-12">
+                <Td colSpan={7} className="py-12">
                   <Empty title="No POs found" description="Create a new PO or change your search filters." />
                 </Td>
               </tr>

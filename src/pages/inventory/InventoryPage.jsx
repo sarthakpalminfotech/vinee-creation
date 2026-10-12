@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeader, Alert, LoadState, Empty, Card } from '../../components/ui';
 import { Qty, StatTile, Chip, Swatch, SectionTitle } from '../../components/kit';
-import { Boxes, CheckCircle2, MapPin, ChevronRight } from 'lucide-react';
+import { Boxes, CheckCircle2, MapPin } from 'lucide-react';
 import { fmtInt, fmtM } from '../../lib/format';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
@@ -118,7 +118,6 @@ export default function InventoryPage() {
                     <div className="text-lg font-bold text-slate-900 truncate">{q.nick}</div>
                     <div className="text-xs text-slate-500 truncate">{q.original}</div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-primary-500 shrink-0" />
                 </div>
                 <Qty className="mt-4" tone={VIEW_META[view].tone} takas={q.takas} meters={q.m} />
                 <div className="mt-3 min-h-[26px] flex flex-wrap items-center gap-2">

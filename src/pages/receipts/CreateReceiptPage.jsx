@@ -34,14 +34,14 @@ const Row = memo(function Row({ row, idx, dup, nominal, locked, onChange, onEnte
     <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
       <Td className="text-center text-slate-400 w-12">{idx + 1}</Td>
       <Td className="p-1.5">
-        <Input id={`no-${row.id}`} disabled={locked} value={row.taka_no} onChange={(e) => onChange(row.id, 'taka_no', e.target.value)} error={dup} className="h-8" aria-label={`Taka number row ${idx + 1}`}
+        <Input id={`no-${row.id}`} disabled={locked} value={row.taka_no} onChange={(e) => onChange(row.id, 'taka_no', e.target.value)} error={dup} className="h-10" aria-label={`Taka number row ${idx + 1}`}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById(`m-${row.id}`)?.focus(); } }} />
       </Td>
       <Td className="p-1.5">
         <Input id={`m-${row.id}`} disabled={locked} inputMode="decimal" value={row.meter} aria-label={`Meters row ${idx + 1}`}
           onChange={(e) => onChange(row.id, 'meter', e.target.value)} error={badMeter}
           onPaste={(e) => onPaste(e, row.id)}
-          className={`h-8 ${outlier ? 'border-amber-300 bg-amber-50 text-amber-900' : ''}`}
+          className={`h-10 ${outlier ? 'border-amber-300 bg-amber-50 text-amber-900' : ''}`}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onEnter(row.id); } }} />
       </Td>
       <Td className="text-center w-20">
@@ -317,7 +317,7 @@ export default function CreateReceiptPage() {
                   <Button type="button" disabled={locked} variant={pasteMode ? 'primary' : 'outline'} size="sm" onClick={() => setPasteMode(!pasteMode)}>
                     <ClipboardPaste className="w-4 h-4 mr-2" /> Bulk Paste
                   </Button>
-                  <Input className="h-8 w-16" inputMode="numeric" value={addCount} onChange={(e) => setAddCount(e.target.value)} aria-label="Rows to add" />
+                  <Input className="h-10 w-16" inputMode="numeric" value={addCount} onChange={(e) => setAddCount(e.target.value)} aria-label="Rows to add" />
                   <Button type="button" disabled={locked} variant="outline" size="sm" onClick={() => addRows(addCount)}><Plus className="w-4 h-4 mr-1" /> Add rows</Button>
                 </div>
               </div>

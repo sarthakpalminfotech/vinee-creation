@@ -70,8 +70,8 @@ export default function OrderDetailPage() {
       </PageHeader>
 
       <Alert tone={msg.tone}>{msg.text}</Alert>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="p-6 md:col-span-3">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+        <Card className="p-6 xl:col-span-3">
           <div className="flex justify-between items-start mb-6">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center">
@@ -85,7 +85,7 @@ export default function OrderDetailPage() {
             {order.status === 'DONE' ? <Badge variant="success">Completed</Badge> : <Badge variant="primary">Open</Badge>}
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div className="bg-slate-50 p-4 rounded-xl">
               <div className="text-sm text-slate-500 mb-1">Quality</div>
               <div className="text-lg font-bold text-slate-900">{order.nick_name}</div>

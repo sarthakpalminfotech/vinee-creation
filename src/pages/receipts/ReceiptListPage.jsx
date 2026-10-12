@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Table, Th, Td, Empty, LoadState, Pager, usePaged } from '../../components/ui';
 import { fmtM, fmtDate } from '../../lib/format';
-import { Plus, Search, ChevronRight, FileText, MapPin, ShieldCheck } from 'lucide-react';
+import { Plus, FileText, MapPin, ShieldCheck } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
 import { Qty } from '../../components/kit';
+import { SearchToggle } from '../../components/kit';
 
 export default function ReceiptListPage() {
   const navigate = useNavigate();
@@ -42,22 +43,11 @@ export default function ReceiptListPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Grey Challans (Receipts)" description="Manage incoming grey fabric from weavers.">
+        <SearchToggle value={search} onChange={setSearch} placeholder="Search challan, PO, weaver or quality..." />
         <Button onClick={() => navigate('/receipts/new')}><Plus className="w-4 h-4 mr-2" /> Receive Challan</Button>
       </PageHeader>
 
-      <Card className="p-4 bg-slate-50 border-b-0 rounded-b-none">
-        <div className="relative w-full max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input 
-            className="pl-9 bg-white" 
-            placeholder="Search challan, PO, weaver or quality..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
-      </Card>
-
-      <Card className="rounded-t-none border-t-0">
+      <Card>
         <Table>
           <thead>
             <tr>
@@ -67,7 +57,6 @@ export default function ReceiptListPage() {
               <Th>Weaver Firm</Th>
               <Th>Destination</Th>
               <Th className="text-right">Quantity</Th>
-              <Th></Th>
             </tr>
           </thead>
           <tbody>
@@ -92,14 +81,11 @@ export default function ReceiptListPage() {
                   }
                 </Td>
                 <Td><Qty variant="cell" takas={r.taka_count} meters={r.total_m} /></Td>
-                <Td className="text-right">
-                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-primary-600 inline-block" />
-                </Td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <Td colSpan={8} className="py-12">
+                <Td colSpan={7} className="py-12">
                   <Empty title="No challans found" description="Try a different search term or receive a new challan." />
                 </Td>
               </tr>

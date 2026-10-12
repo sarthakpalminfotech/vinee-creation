@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Table, Th, Td, Badge, Empty, LoadState, Pager, usePaged } from '../../components/ui';
 import { fmtM, fmtDate } from '../../lib/format';
-import { Plus, Search, ChevronRight, ShoppingCart } from 'lucide-react';
+import { Plus, ShoppingCart } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
 import { Qty } from '../../components/kit';
+import { SearchToggle } from '../../components/kit';
 
 export default function OrderListPage() {
   const navigate = useNavigate();
@@ -46,22 +47,11 @@ export default function OrderListPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Customer Orders" description="Manage sales orders and allocate ready takas.">
+        <SearchToggle value={search} onChange={setSearch} placeholder="Search order no, customer, or quality..." />
         <Button onClick={() => navigate('/orders/new')}><Plus className="w-4 h-4 mr-2" /> New Order</Button>
       </PageHeader>
 
-      <Card className="p-4 bg-slate-50 border-b-0 rounded-b-none">
-        <div className="relative w-full max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input 
-            className="pl-9 bg-white" 
-            placeholder="Search order no, customer, or quality..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
-      </Card>
-
-      <Card className="rounded-t-none border-t-0">
+      <Card>
         <Table>
           <thead>
             <tr>
@@ -72,7 +62,6 @@ export default function OrderListPage() {
               <Th className="text-right">Ordered</Th>
               <Th className="text-right">Allocated</Th>
               <Th>Status</Th>
-              <Th></Th>
             </tr>
           </thead>
           <tbody>
@@ -95,14 +84,11 @@ export default function OrderListPage() {
                 <Td><Qty variant="cell" takas={o.total_takas > 0 ? o.total_takas : null} meters={o.total_meters > 0 ? o.total_meters : null} /></Td>
                 <Td><Qty variant="cell" tone={o.lines.length > 0 && o.lines.every(repo.orderLineDone) ? 'emerald' : 'slate'} takas={o.allocated} meters={o.allocated_m} /></Td>
                 <Td>{getStatusBadge(o.status)}</Td>
-                <Td className="text-right">
-                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-primary-600 inline-block" />
-                </Td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <Td colSpan={8} className="py-12">
+                <Td colSpan={7} className="py-12">
                   <Empty title="No orders found" description="Create a new sales order for a customer." />
                 </Td>
               </tr>

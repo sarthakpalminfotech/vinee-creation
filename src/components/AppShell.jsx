@@ -45,36 +45,36 @@ export function AppShell() {
   return (
     <div className="app-root flex h-screen bg-slate-50 overflow-hidden font-sans text-slate-900">
       {/* Desktop Sidebar */}
-      <aside className="print:hidden hidden lg:flex flex-col w-64 border-r border-slate-200 bg-white shadow-sm">
-        <div className="h-16 flex items-center px-6 border-b border-slate-100">
+      <aside className="print:hidden hidden md:flex flex-col w-[84px] xl:w-64 border-r border-slate-200 bg-white shadow-sm">
+        <div className="h-16 flex items-center justify-center xl:justify-start xl:px-6 border-b border-slate-100">
           <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400">
-            Vinee Creation
+            <span className="xl:hidden">VC</span><span className="hidden xl:inline">Vinee Creation</span>
           </div>
         </div>
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        <nav className="flex-1 overflow-y-auto py-4 px-2 xl:px-3 space-y-1">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                `flex flex-col xl:flex-row items-center gap-1 xl:gap-3 px-1 xl:px-3 py-2.5 rounded-lg text-[11px] xl:text-sm font-medium text-center xl:text-left transition-all duration-200 ${
                   isActive
                     ? 'bg-primary-50 text-primary-700'
                     : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                 }`
               }
             >
-              <item.icon className="w-5 h-5" />
-              {item.label}
+              <item.icon className="w-6 h-6 xl:w-5 xl:h-5" />
+              <span className="leading-tight">{item.label}</span>
             </NavLink>
           ))}
         </nav>
-        <div className="p-4 border-t border-slate-100">
+        <div className="p-2 xl:p-4 border-t border-slate-100">
           <button
             onClick={() => setSettingsOpen(true)}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 w-full transition-colors"
+            className="flex flex-col xl:flex-row items-center gap-1 xl:gap-3 px-1 xl:px-3 py-2.5 rounded-lg text-[11px] xl:text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 w-full transition-colors"
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-6 h-6 xl:w-5 xl:h-5" />
             Settings
           </button>
         </div>
@@ -82,7 +82,7 @@ export function AppShell() {
 
       {/* Mobile Header & Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="print:hidden lg:hidden flex items-center h-14 px-4 bg-white border-b border-slate-200">
+        <header className="print:hidden md:hidden flex items-center h-14 px-4 bg-white border-b border-slate-200">
           <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 -ml-2 mr-2 text-slate-600">
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -91,7 +91,7 @@ export function AppShell() {
 
         {/* Mobile Menu Overlay */}
         {mobileMenuOpen && (
-          <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div className="md:hidden fixed inset-0 z-50 flex">
             <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
             <div className="relative flex-1 flex flex-col max-w-[280px] w-full bg-white shadow-2xl h-full animate-in slide-in-from-left duration-200">
               <div className="h-14 flex items-center justify-between px-4 border-b border-slate-100">
@@ -133,7 +133,7 @@ export function AppShell() {
           </div>
         )}
 
-        <main className="app-main flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="app-main flex-1 overflow-y-auto p-4 sm:p-5 md:p-6 xl:p-8">
           <Outlet />
         </main>
       </div>

@@ -9,6 +9,7 @@ let n = 0;
 export default function AvailabilityPage() {
   const [qualities, setQualities] = useState([]);
   const [shades, setShades] = useState([]);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [qualityId, setQualityId] = useState('');
@@ -16,7 +17,7 @@ export default function AvailabilityPage() {
 
   const dbVersion = useDbVersion();
   useEffect(() => {
-    Promise.all([repo.listQualities(), repo.listShades()]).then(([q, s]) => { setQualities(q); setShades(s); }).catch((e) => setError(e.message)).finally(() => setLoading(false));
+    Promise.all([repo.listQualities(), repo.listShades(), repo.listItems()]).then(([q, s, i]) => { setQualities(q); setShades(s); setItems(i); }).catch((e) => setError(e.message)).finally(() => setLoading(false));
   }, [dbVersion]);
 
   const ids = lines.map((l) => Number(l.shade_id)).filter(Boolean);
@@ -24,12 +25,32 @@ export default function AvailabilityPage() {
   const needs = Object.fromEntries(lines.filter((l) => l.shade_id).map((l) => [Number(l.shade_id), l.takas]));
   const upd = (id, k, v) => setLines((ls) => ls.map((l) => (l.id === id ? { ...l, [k]: v } : l)));
 
+  // choose by item code: sets the quality and puts that colour on the list
+  const pickItem = (itemId) => {
+    const it = items.find((i) => String(i.id) === String(itemId));
+    if (!it) return;
+    const sameQuality = String(it.quality_id) === String(qualityId);
+    if (!sameQuality) setQualityId(String(it.quality_id));
+    setLines((ls) => {
+      const base = sameQuality ? ls : [];
+      return !it.shade_id || base.some((l) => String(l.shade_id) === String(it.shade_id)) ? base : [...base, { id: ++n, shade_id: String(it.shade_id), takas: '' }];
+    });
+  };
+  const itemOf = (shadeId) => items.find((i) => String(i.quality_id) === String(qualityId) && String(i.shade_id) === String(shadeId));
+
   if (loading || (error && !qualities.length)) return <LoadState loading={loading} error={error} />;
 
   return (
     <div className="space-y-6 max-w-4xl">
       <PageHeader title="Customer availability" description="Before taking an order: what we can give for a quality (by nickname) in each shade." />
       <Card className="p-6 space-y-4">
+        <Field label="Find by item code">
+          <Select id="avail-item" value="" onChange={(e) => pickItem(e.target.value)}>
+            <option value="">Type or pick an item code (e.g. GL-37)…</option>
+            {items.filter((i) => i.shade_id).map((i) => <option key={i.id} value={i.id}>{i.code} · {i.nick_name} · {i.shade_no}{i.shade_name ? ` ${i.shade_name}` : ''}</option>)}
+          </Select>
+        </Field>
+        <div className="flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-slate-200" />or choose a quality and colours<span className="h-px flex-1 bg-slate-200" /></div>
         <Field label="Quality (nickname)">
           <Select id="avail-quality" value={qualityId} onChange={(e) => setQualityId(e.target.value)}>
             <option value="">Select quality…</option>
@@ -43,7 +64,7 @@ export default function AvailabilityPage() {
                 <div className="flex-1">
                   <Select value={l.shade_id} onChange={(e) => upd(l.id, 'shade_id', e.target.value)}>
                     <option value="">Select shade…</option>
-                    {shades.map((s) => <option key={s.id} value={s.id}>{s.chart_name}: {s.number}{s.name ? ` - ${s.name}` : ''}</option>)}
+                    {shades.map((s) => { const it = itemOf(s.id); return <option key={s.id} value={s.id}>{it ? `${it.code} · ` : ''}{s.chart_name}: {s.number}{s.name ? ` - ${s.name}` : ''}</option>; })}
                   </Select>
                 </div>
                 <div className="w-32"><Input type="number" min="0" placeholder="Takas wanted" value={l.takas} onChange={(e) => upd(l.id, 'takas', e.target.value)} /></div>

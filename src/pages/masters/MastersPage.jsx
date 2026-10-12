@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Select, Modal, Field, Table, Th, Td, Empty, Alert } from '../../components/ui';
 import { useDbVersion } from '../../lib/live';
+import { SearchToggle } from '../../components/kit';
 import { Search, Plus, Edit, Trash2, ChevronDown, ChevronRight, AlertCircle, Palette, Wand2 } from 'lucide-react';
 import * as repo from '../../db/repo';
 
@@ -526,15 +527,7 @@ export default function MastersPage() {
       </div>
 
       <PageHeader title={`${currentTab.label} Master`}>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input 
-            className="pl-9 bg-white" 
-            placeholder={`Search ${currentTab.label.toLowerCase()}...`}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <SearchToggle value={search} onChange={setSearch} placeholder={`Search ${currentTab.label.toLowerCase()}...`} />
         <Button onClick={() => handleOpenModal(getModalBaseType())} className="flex-shrink-0">
           <Plus className="w-4 h-4 mr-2" />
           {getAddTitle()}

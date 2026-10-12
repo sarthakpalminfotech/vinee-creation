@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Plus, X, ChevronRight, ChevronLeft, AlertCircle, Edit, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+const cn = (...a) => twMerge(clsx(a));
 import { createPortal } from 'react-dom';
 
 export function Button({ variant = 'primary', size = 'md', className = '', children, ...props }) {
@@ -13,12 +17,12 @@ export function Button({ variant = 'primary', size = 'md', className = '', child
     danger: "bg-red-50 text-red-600 hover:bg-red-100"
   };
   const sizes = {
-    sm: "h-8 px-3 text-xs",
-    md: "h-10 px-4 text-sm",
+    sm: "h-9 px-3 text-xs",
+    md: "h-11 px-4 text-sm",
     lg: "h-12 px-6 text-base"
   };
   return (
-    <button className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...props}>
+    <button className={cn(base, variants[variant], sizes[size], className)} {...props}>
       {children}
     </button>
   );
@@ -46,9 +50,7 @@ export const Input = React.forwardRef(({ className = '', error, ...props }, ref)
   return (
     <input
       ref={ref}
-      className={`h-10 w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-        error ? 'border-red-300' : 'border-slate-300'
-      } ${className}`}
+      className={cn('h-11 w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent', error ? 'border-red-300' : 'border-slate-300', className)}
       {...props}
     />
   );

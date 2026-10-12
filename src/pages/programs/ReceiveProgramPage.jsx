@@ -192,10 +192,10 @@ export default function ReceiveProgramPage() {
                     <Td className="font-medium text-slate-900">{r.taka_no}</Td>
                     <Td className="text-right text-slate-500">{r.grey_meter}</Td>
                     <Td className="text-right">
-                      <Input type="number" step="0.01" className="w-24 ml-auto text-right h-8" value={r.mill_grey_meter} onChange={e => updateRow(r.id, 'mill_grey_meter', e.target.value)} />
+                      <Input type="number" step="0.01" className="w-24 ml-auto text-right h-10" value={r.mill_grey_meter} onChange={e => updateRow(r.id, 'mill_grey_meter', e.target.value)} />
                     </Td>
                     <Td className="text-right">
-                      <Input type="number" step="0.01" className="w-24 ml-auto text-right h-8 border-primary-300 focus:border-primary-500" value={r.finished_meter} onChange={e => updateRow(r.id, 'finished_meter', e.target.value)} />
+                      <Input type="number" step="0.01" className="w-24 ml-auto text-right h-10 border-primary-300 focus:border-primary-500" value={r.finished_meter} onChange={e => updateRow(r.id, 'finished_meter', e.target.value)} />
                     </Td>
                     <Td className="text-right text-slate-600">{r.finished_meter !== '' && r.mill_grey_meter !== '' ? fmtM(Number(r.mill_grey_meter) - Number(r.finished_meter)) : '-'}</Td>
                   </tr>

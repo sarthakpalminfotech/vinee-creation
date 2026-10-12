@@ -145,7 +145,7 @@ export default function FoldingPage() {
                 <Td className="text-right">
                   <Input 
                     type="number" step="0.01" 
-                    className="w-24 ml-auto text-right h-8 border-primary-300 focus:border-primary-500" 
+                    className="w-24 ml-auto text-right h-10 border-primary-300 focus:border-primary-500" 
                     value={r.input_folded_meter} 
                     onChange={e => updateRow(r.id, e.target.value)} 
                   />
