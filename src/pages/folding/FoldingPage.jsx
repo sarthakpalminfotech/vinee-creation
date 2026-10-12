@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PageHeader, Card, Button, Input, Table, Th, Td, Alert, LoadState, Pager, usePaged, useAction } from '../../components/ui';
+import { PageHeader, Card, Button, Input, Select, Table, Th, Td, Alert, LoadState, Pager, usePaged, useAction } from '../../components/ui';
 import { fmtM } from '../../lib/format';
 import { Search, Scissors } from 'lucide-react';
 import * as repo from '../../db/repo';
@@ -11,6 +11,7 @@ export default function FoldingPage() {
   const [loading, setLoading] = useState(true);
   const [takas, setTakas] = useState([]);
   const [search, setSearch] = useState('');
+  const [qualityFilter, setQualityFilter] = useState('');
   const [loadError, setLoadError] = useState('');
   const [okMsg, setOkMsg] = useState('');
   const { busy, error, run } = useAction();
@@ -67,11 +68,13 @@ export default function FoldingPage() {
     });
   };
 
-  const filtered = takas.filter(t => 
+  const qualityOptions = [...new Map(takas.map(t => [String(t.quality_id), t.nick_name])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+  const filtered = takas.filter(t => (!qualityFilter || String(t.quality_id) === qualityFilter) && (
     `${t.challan_no}/${t.taka_no}`.toLowerCase().includes(search.toLowerCase()) || 
     (t.nick_name || '').toLowerCase().includes(search.toLowerCase()) ||
-    (t.shade_no || '').toLowerCase().includes(search.toLowerCase())
-  );
+    (t.shade_no || '').toLowerCase().includes(search.toLowerCase()) ||
+    (t.item_code || '').toLowerCase().includes(search.toLowerCase())
+  ));
 
   const paged = usePaged(filtered, 100);
   const selectedRows = takas.filter(r => r.selected);
@@ -88,6 +91,10 @@ export default function FoldingPage() {
         description="Cut and fold finished takas to ready stock"
       >
         <div className="flex items-center gap-3">
+          <Select className="w-44" value={qualityFilter} onChange={e => setQualityFilter(e.target.value)}>
+            <option value="">All qualities</option>
+            {qualityOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </Select>
           <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-40" />
           <Button onClick={handleSave} disabled={busy || selectedRows.length === 0}>
             <Scissors className="w-4 h-4 mr-2" /> Fold Selected
@@ -120,11 +127,10 @@ export default function FoldingPage() {
                 />
               </Th>
               <Th>Quality</Th>
-              <Th>Shade</Th>
+              <Th>Item / shade</Th>
               <Th>Taka No</Th>
               <Th className="text-right">Finished M</Th>
               <Th className="text-right w-32">Folded M *</Th>
-              <Th className="text-right">Loss m</Th>
             </tr>
           </thead>
           <tbody>
@@ -137,7 +143,7 @@ export default function FoldingPage() {
                 <Td>
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded-sm border border-slate-200" style={{ backgroundColor: r.shade_hex || '#ccc' }}></div>
-                    <span>{r.shade_no}</span>
+                    <span className="font-mono font-semibold text-slate-900">{r.item_code || r.shade_no}</span>{r.item_code && <span className="text-xs text-slate-500">{r.shade_no}</span>}
                   </div>
                 </Td>
                 <Td className="font-medium">{r.label}</Td>
@@ -153,7 +159,7 @@ export default function FoldingPage() {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><Td colSpan={7} className="py-12 text-center text-slate-500">
+              <tr><Td colSpan={6} className="py-12 text-center text-slate-500">
                 {loading ? 'Loading...' : 'No finished takas ready for folding.'}
               </Td></tr>
             )}

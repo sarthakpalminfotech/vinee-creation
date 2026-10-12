@@ -56,11 +56,10 @@ export default function OrderListPage() {
       </PageHeader>
 
       <Card>
-        <Table>
+        <Table className="whitespace-normal [&_td]:px-3 [&_th]:px-3">
           <thead>
             <tr>
               <Th>Order No</Th>
-              <Th>Date</Th>
               <Th>Customer</Th>
               <Th>Quality</Th>
               <Th className="text-right">Ordered</Th>
@@ -71,13 +70,10 @@ export default function OrderListPage() {
           <tbody>
             {paged.rows.map(o => (
               <tr key={o.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => navigate(`/orders/${o.id}`)}>
-                <Td className="font-semibold text-slate-900">
-                  <div className="flex items-center gap-2">
-                    <ShoppingCart className="w-4 h-4 text-slate-400" />
-                    {o.order_no}
-                  </div>
+                <Td>
+                  <div className="font-semibold text-slate-900 whitespace-nowrap">{o.order_no}</div>
+                  <div className="text-xs text-slate-500 whitespace-nowrap">{fmtDate(o.date)}</div>
                 </Td>
-                <Td>{fmtDate(o.date)}</Td>
                 <Td>
                   <div className="font-medium text-slate-900">{o.customer_name}</div>
                   <div className="text-xs text-slate-500">{o.customer_city}</div>
@@ -92,7 +88,7 @@ export default function OrderListPage() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <Td colSpan={7} className="py-12">
+                <Td colSpan={6} className="py-12">
                   <Empty title="No orders found" description="Create a new sales order for a customer." />
                 </Td>
               </tr>

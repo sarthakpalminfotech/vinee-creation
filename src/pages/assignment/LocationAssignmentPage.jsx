@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { PageHeader, Card, Button, Table, Th, Td, Select, Input, Empty, Modal, Alert, LoadState, Pager, usePaged, useAction, Field, SearchArea } from '../../components/ui';
 import { Qty, Chip, SearchToggle, FilterButton, SectionTitle } from '../../components/kit';
-import { MapPin, CheckCircle, History } from 'lucide-react';
+import { MapPin, CheckCircle, History, ChevronDown } from 'lucide-react';
 import { fmtM, fmtInt } from '../../lib/format';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
@@ -28,6 +28,7 @@ export default function LocationAssignmentPage() {
   const [msg, setMsg] = useState('');
   const [history, setHistory] = useState(null);
   const [openRacks, setOpenRacks] = useState(() => new Set());
+  const [collapsed, setCollapsed] = useState(() => new Set()); // branch cards folded shut
   const lastClicked = useRef(null);
   const { busy, error, run } = useAction();
 
@@ -119,11 +120,15 @@ export default function LocationAssignmentPage() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             {byBranch.map((b) => (
               <Card key={b.name} className="overflow-visible">
-                <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-slate-100 bg-slate-50/60">
-                  <div className="flex items-center gap-2 font-semibold text-slate-900"><MapPin className="w-4 h-4 text-slate-400" />{b.name}</div>
+                <button type="button" aria-expanded={!collapsed.has(b.name)}
+                  onClick={() => setCollapsed((p) => { const n = new Set(p); if (n.has(b.name)) n.delete(b.name); else n.add(b.name); return n; })}
+                  className={`w-full flex flex-wrap items-center justify-between gap-3 p-4 bg-slate-50/60 text-left hover:bg-slate-100/70 ${collapsed.has(b.name) ? '' : 'border-b border-slate-100'}`}>
+                  <span className="flex items-center gap-2 font-semibold text-slate-900">
+                    <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${collapsed.has(b.name) ? '-rotate-90' : ''}`} />{b.name}
+                  </span>
                   <Qty variant="inline" takas={b.count} meters={b.meters} />
-                </div>
-                <div className="divide-y divide-slate-100">
+                </button>
+                {!collapsed.has(b.name) && <div className="divide-y divide-slate-100">
                   {b.racks.map((g) => {
                     const open = openRacks.has(g.key);
                     return (
@@ -139,7 +144,7 @@ export default function LocationAssignmentPage() {
                       </div>
                     );
                   })}
-                </div>
+                </div>}
               </Card>
             ))}
           </div>

@@ -146,7 +146,7 @@ export function Empty({ icon: Icon = AlertCircle, title, description, action }) 
 export function Table({ children, className = '', ...props }) {
   return (
     <div className="w-full overflow-x-auto">
-      <table className={`w-full text-left text-sm whitespace-nowrap ${className}`} {...props}>
+      <table className={cn('w-full text-left text-sm whitespace-nowrap', className)} {...props}>
         {children}
       </table>
     </div>

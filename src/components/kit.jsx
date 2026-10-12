@@ -169,9 +169,8 @@ export function FilterButton({ count = 0, title = 'Filters', onClear, children }
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} aria-label="Open filters"
-        className={`relative h-11 px-3 shrink-0 inline-flex items-center gap-2 rounded-lg border bg-white text-sm font-medium hover:bg-slate-50 ${count ? 'border-primary-400 text-primary-700' : 'border-slate-300 text-slate-700'}`}>
+        className={`relative h-11 min-w-[44px] justify-center px-3 shrink-0 inline-flex items-center gap-2 rounded-md border bg-white text-sm font-medium hover:bg-slate-50 ${count ? 'border-primary-400 text-primary-700' : 'border-slate-300 text-slate-700'}`}>
         <SlidersHorizontal className="w-5 h-5" />
-        <span className="hidden sm:inline">Filters</span>
         {count > 0 && <span className="min-w-[20px] h-5 px-1 rounded-full bg-primary-600 text-white text-xs font-semibold grid place-items-center">{count}</span>}
       </button>
       <Modal isOpen={open} onClose={() => setOpen(false)} title={title} maxWidth="max-w-lg">

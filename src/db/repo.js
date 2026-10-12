@@ -162,7 +162,7 @@ export const nextOrderNo = () => nextNo('orders', 'SO')
 const TAKA_SQL = `SELECT t.*, r.challan_no, r.date AS receipt_date, r.destination, r.po_id, r.weaver_id,
   w.name AS weaver_name, g.id AS group_id, g.name AS group_name,
   p.po_no, p.quality_id, p.taka_length, q.nick_name, q.original_name,
-  l.shop, l.rack, b.name AS branch_name, it.code AS item_code, m.name AS mill_name, d.dispatch_no,
+  l.shop, l.rack, b.name AS branch_name, COALESCE(it.code, (SELECT i2.code FROM items i2 WHERE i2.quality_id=p.quality_id AND i2.shade_id=pl.shade_id ORDER BY i2.id LIMIT 1)) AS item_code, m.name AS mill_name, d.dispatch_no,
   pl.program_id, pl.shade_id, pr.program_no, pr.mill_id AS program_mill_id, pm.name AS program_mill_name,
   s.number AS shade_no, s.hex AS shade_hex, s.name AS shade_name,
   fr.challan_no AS finished_challan, o.order_no
