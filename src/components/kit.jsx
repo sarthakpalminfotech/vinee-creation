@@ -2,7 +2,7 @@
 // Pure UI (no data access) so screens can adopt it — or drop it — independently.
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, X, SlidersHorizontal } from 'lucide-react';
+import { Search, X, SlidersHorizontal, List, LayoutGrid } from 'lucide-react';
 import { fmtInt, fmtM } from '../lib/format';
 import { Button, Modal, SearchSlotContext, Field, Input, Select } from './ui';
 
@@ -218,5 +218,59 @@ export function ListFilter({ fields, values, onChange, dates = true, title = 'Fi
         </div>
       )}
     </FilterButton>
+  );
+}
+
+/** List / card view switch, remembered per screen in this browser. */
+export function useViewMode(key, initial = 'list') {
+  const storageKey = `vinee:view:${key}`;
+  const [mode, setMode] = useState(() => { try { return localStorage.getItem(storageKey) || initial; } catch { return initial; } });
+  const change = (m) => { setMode(m); try { localStorage.setItem(storageKey, m); } catch { /* private mode */ } };
+  return [mode, change];
+}
+export function ViewToggle({ mode, onChange }) {
+  const btn = (m, Icon, label) => (
+    <button type="button" onClick={() => onChange(m)} aria-label={label} aria-pressed={mode === m}
+      className={`h-9 w-10 grid place-items-center rounded ${mode === m ? 'bg-primary-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+      <Icon className="w-5 h-5" />
+    </button>
+  );
+  return (
+    <div className="inline-flex rounded-md border border-slate-300 bg-white p-1">
+      {btn('list', List, 'List view')}
+      {btn('card', LayoutGrid, 'Card view')}
+    </div>
+  );
+}
+
+/** True on wide screens (desktop, >= 1024px). Tablets and phones use step-by-step screens instead. */
+export function useIsDesktop() {
+  const q = '(min-width: 1024px)';
+  const get = () => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(q).matches : true);
+  const [is, setIs] = useState(get);
+  useEffect(() => {
+    if (!window.matchMedia) return undefined;
+    const m = window.matchMedia(q);
+    const on = () => setIs(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+  return is;
+}
+
+/** Numbered step tabs for tablet/phone create screens. */
+export function StepTabs({ steps, step, onStep }) {
+  return (
+    <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 mb-5">
+      {steps.map((label, i) => {
+        const n = i + 1, on = step === n;
+        return (
+          <button key={label} type="button" onClick={() => onStep(n)} aria-current={on ? 'step' : undefined}
+            className={`flex-1 h-11 rounded-md text-sm font-semibold inline-flex items-center justify-center gap-2 ${on ? 'bg-primary-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+            <span className={`w-6 h-6 rounded-full grid place-items-center text-xs border ${on ? 'border-white/60' : 'border-slate-300'}`}>{n}</span>{label}
+          </button>
+        );
+      })}
+    </div>
   );
 }

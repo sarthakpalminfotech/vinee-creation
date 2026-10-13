@@ -5,10 +5,11 @@ import { fmtM, fmtPct, fmtDate } from '../../lib/format';
 import { Plus, FileText } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
-import { SearchToggle, ListFilter, uniqueOptions, inDateRange } from '../../components/kit';
+import { SearchToggle, ListFilter, uniqueOptions, inDateRange, ViewToggle, useViewMode, Progress } from '../../components/kit';
 
 export default function PoListPage() {
   const navigate = useNavigate();
+  const [viewMode, setViewMode] = useViewMode('po');
   const [loading, setLoading] = useState(true);
   const [pos, setPos] = useState([]);
   const [error, setError] = useState('');
@@ -47,9 +48,49 @@ export default function PoListPage() {
       <PageHeader title="Grey Purchase Orders" description="Manage all fabric orders placed to weavers.">
         <ListFilter values={flt} onChange={setFlt} fields={[{ key: 'status', label: 'Status', options: Object.entries(repo.PO_STATUS_META).map(([k, v]) => [k, v.label]) }, { key: 'group_id', label: 'Party group', options: uniqueOptions(pos, (x) => x.group_id, (x) => x.group_name) }, { key: 'quality_id', label: 'Quality', options: uniqueOptions(pos, (x) => x.quality_id, (x) => x.nick_name) }]} />
         <SearchToggle value={search} onChange={setSearch} placeholder="Search PO, weaver, or quality..." />
+        <ViewToggle mode={viewMode} onChange={setViewMode} />
         <Button onClick={() => navigate('/po/new')}><Plus className="w-4 h-4 mr-2" /> Create PO</Button>
       </PageHeader>
 
+      {viewMode === 'card' ? (
+        <>
+          {filtered.length === 0 ? <Empty title="No POs found" description="Create a new PO or change your filters." /> : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {paged.rows.map(p => (
+                <button key={p.id} type="button" onClick={() => navigate(`/po/${p.id}`)}
+                  className="text-left rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-primary-300 transition">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-900">{p.po_no}</div>
+                      <div className="text-sm font-medium text-slate-700 truncate">{p.group_name}</div>
+                    </div>
+                    {getStatusBadge(p.status)}
+                  </div>
+                  <div className="mt-1 text-sm text-slate-500 truncate">{p.original_name} · {p.nick_name}</div>
+                  <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
+                    {[
+                      ['PO date', fmtDate(p.po_date)],
+                      ['Due date', p.due_date ? fmtDate(p.due_date) : '—'],
+                      ['Ordered', `${fmtM(p.meters)} m`],
+                      ['Received', `${fmtM(p.received_m)} m`],
+                      ['Pending', `${fmtM(p.pending_m)} m`],
+                      ['Rate', `₹${p.rate} / m`],
+                    ].map(([label, value]) => (
+                      <div key={label} className="min-w-0">
+                        <dt className="text-xs font-bold text-slate-500">{label}</dt>
+                        <dd className="text-sm font-semibold text-slate-900 tabular-nums truncate">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <div className="mt-4"><Progress label="Received" pct={p.pct} tone={p.pct >= 100 ? 'emerald' : 'primary'} /></div>
+                  {p.shortfall_pct != null && p.shortfall !== 0 && <div className="mt-2 text-xs font-medium text-amber-700">{p.shortfall > 0 ? 'Short' : 'Excess'} {fmtM(Math.abs(p.shortfall))} m ({fmtPct(Math.abs(p.shortfall_pct))})</div>}
+                </button>
+              ))}
+            </div>
+          )}
+          <Pager paged={paged} />
+        </>
+      ) : (
       <Card>
         <Table>
           <thead>
@@ -111,6 +152,7 @@ export default function PoListPage() {
         </Table>
         <Pager paged={paged} />
       </Card>
+      )}
     </div>
   );
 }

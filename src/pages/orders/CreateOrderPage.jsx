@@ -109,7 +109,7 @@ export default function CreateOrderPage() {
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">Order Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Order Number *">
                 <Input required value={formData.order_no} onChange={e => setFormData(p => ({ ...p, order_no: e.target.value }))} />
               </Field>
@@ -128,7 +128,7 @@ export default function CreateOrderPage() {
                   {qualities.map(q => <option key={q.id} value={q.id}>{q.nick_name}</option>)}
                 </Select>
               </Field>
-              <div className="md:col-span-2">
+              <div className="sm:col-span-2">
                 <Field label="Notes (Optional)">
                   <Input value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} />
                 </Field>

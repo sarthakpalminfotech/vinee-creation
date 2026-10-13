@@ -113,7 +113,7 @@ export default function CreateProgramPage() {
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">Program Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Mill *">
                 <Select required value={formData.mill_id} onChange={e => setFormData(p => ({ ...p, mill_id: e.target.value }))}>
                   <option value="">Select Mill...</option>
@@ -138,7 +138,7 @@ export default function CreateProgramPage() {
               <Field label="Takas in this program (optional check)">
                 <Input type="number" min="1" value={programTotal} onChange={e => setProgramTotal(e.target.value)} placeholder="e.g. 48" />
               </Field>
-              <div className="md:col-span-2">
+              <div className="sm:col-span-2">
                 <Field label="Notes (Optional)">
                   <Input value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Special instructions for dyeing..." />
                 </Field>

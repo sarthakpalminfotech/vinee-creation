@@ -1,28 +1,32 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader, Card, Button, Select, Input, Field, Table, Th, Td, Empty, Badge, Drawer, Alert, Pager, usePaged, useAction } from '../../components/ui';
-import { fmtM } from '../../lib/format';
-import { ArrowLeft, Save, ShieldCheck } from 'lucide-react';
+import { PageHeader, Card, Button, Select, Input, Field, Table, Th, Td, Empty, Badge, Drawer, Alert, Modal, Pager, usePaged, useAction } from '../../components/ui';
+import { fmtM, fmtDate } from '../../lib/format';
+import { ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
+import { DetailList, StepTabs, useIsDesktop } from '../../components/kit';
 import * as repo from '../../db/repo';
 
 export default function CreateDispatchPage() {
   const navigate = useNavigate();
+  const desktop = useIsDesktop();
+  const [step, setStep] = useState(1); // tablet / phone: 1 = dispatch details, 2 = select takas
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mills, setMills] = useState([]);
   const [availableTakas, setAvailableTakas] = useState([]);
-  
+
   const [formData, setFormData] = useState({
     mill_id: '',
     date: new Date().toISOString().slice(0, 10),
     notes: ''
   });
-  
+
   const [selectedTakaIds, setSelectedTakaIds] = useState(new Set());
   const [qualityFilter, setQualityFilter] = useState('');
   const [challanFilter, setChallanFilter] = useState('');
   const [branchFilter, setBranchFilter] = useState('');
   const [loadError, setLoadError] = useState('');
-  const { busy, error, run } = useAction();
+  const { busy, error, setError, run } = useAction();
 
   useEffect(() => {
     async function load() {
@@ -86,15 +90,28 @@ export default function CreateDispatchPage() {
     setSelectedTakaIds(new Set());
   };
 
+  const checkDetails = () => {
+    if (!formData.mill_id) throw new Error('Please select a mill');
+    if (!formData.date) throw new Error('Choose the dispatch date');
+  };
+  const goStep = (n) => {
+    if (n === 2) { try { checkDetails(); setError(''); } catch (e) { setError(e.message); return; } }
+    setStep(n);
+  };
+  // Send button → summary popup → confirm saves
   const handleSave = (e) => {
     e.preventDefault();
-    run(async () => {
-      if (!formData.mill_id) throw new Error('Please select a mill');
+    try {
+      checkDetails();
       if (selectedTakaIds.size === 0) throw new Error('Please select at least one taka to send');
-      const id = await repo.createDispatch({ ...formData, taka_ids: Array.from(selectedTakaIds) });
-      navigate(`/dispatch/${id}`);
-    });
+      setError('');
+      setConfirmOpen(true);
+    } catch (err) { setError(err.message); }
   };
+  const doSave = () => run(async () => {
+    const id = await repo.createDispatch({ ...formData, taka_ids: Array.from(selectedTakaIds) });
+    navigate(`/dispatch/${id}`);
+  });
 
   const selectedMeters = availableTakas
     .filter(t => selectedTakaIds.has(t.id))
@@ -105,18 +122,18 @@ export default function CreateDispatchPage() {
   return (
     <Drawer isOpen={true} onClose={() => navigate('/dispatch')}>
       <div className="space-y-6 max-w-5xl mx-auto">
-        <PageHeader 
-          title="New Mill Dispatch" 
-          description="Select godown inventory to send to a mill for dyeing."
-        >
+        <PageHeader title="New Mill Dispatch">
           <Button variant="ghost" onClick={() => navigate('/dispatch')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
         </PageHeader>
 
+        {!desktop && <StepTabs steps={['Dispatch details', 'Select takas']} step={step} onStep={goStep} />}
+
       <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Dispatch Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {(desktop || step === 1) && (
+          <Card className="p-5">
+            <h3 className="text-base font-semibold text-slate-900 mb-4">Dispatch details</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Destination Mill *">
                 <Select required value={formData.mill_id} onChange={e => setFormData(p => ({ ...p, mill_id: e.target.value }))}>
                   <option value="">Select Mill...</option>
@@ -126,14 +143,22 @@ export default function CreateDispatchPage() {
               <Field label="Dispatch Date *">
                 <Input type="date" required value={formData.date} onChange={e => setFormData(p => ({ ...p, date: e.target.value }))} />
               </Field>
-              <div className="md:col-span-2">
+              <div className="sm:col-span-2">
                 <Field label="Notes (Optional)">
                   <Input value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} />
                 </Field>
               </div>
             </div>
+            {!desktop && (
+              <div className="mt-5 pt-5 border-t border-slate-100 flex items-center justify-between gap-3">
+                <Alert className="flex-1">{error}</Alert>
+                <Button type="button" className="ml-auto" onClick={() => goStep(2)}>Next: select takas <ArrowRight className="w-4 h-4 ml-2" /></Button>
+              </div>
+            )}
           </Card>
+          )}
 
+          {(desktop || step === 2) && (
           <Card className="p-0 overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row gap-4 justify-between items-center">
               <div className="flex items-center gap-2">
@@ -153,21 +178,21 @@ export default function CreateDispatchPage() {
                 {challans.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
               </Select>
             </div>
-            
+
             <div className="p-3 border-b border-slate-100 flex flex-wrap gap-2 items-center bg-white">
               <Button type="button" variant="outline" size="sm" onClick={selectAllFiltered}>Select All Shown</Button>
               <Button type="button" variant="outline" size="sm" onClick={() => selectFirstN(10)}>Select 10</Button>
               <Button type="button" variant="outline" size="sm" onClick={() => selectFirstN(25)}>Select 25</Button>
               <Button type="button" variant="ghost" size="sm" onClick={clearSelection}>Clear Selection</Button>
             </div>
-            
+
             <div className="max-h-[500px] overflow-y-auto">
               <Table>
                 <thead className="sticky top-0 bg-slate-50 shadow-sm z-10">
                   <tr>
                     <Th className="w-12 text-center">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         className="rounded text-primary-600 focus:ring-primary-500"
                         checked={filteredTakas.length > 0 && filteredTakas.every(t => selectedTakaIds.has(t.id))}
                         onChange={(e) => e.target.checked ? selectAllFiltered() : clearSelection()}
@@ -184,8 +209,8 @@ export default function CreateDispatchPage() {
                   {paged.rows.map(t => (
                     <tr key={t.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => toggleTaka(t.id)}>
                       <Td className="text-center">
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           className="rounded text-primary-600 focus:ring-primary-500 cursor-pointer"
                           checked={selectedTakaIds.has(t.id)}
                           readOnly
@@ -212,20 +237,22 @@ export default function CreateDispatchPage() {
             </div>
             <Pager paged={paged} />
           </Card>
+          )}
         </div>
 
+        {(desktop || step === 2) && (
         <div className="space-y-6">
-          <Card className="p-6 bg-slate-50 border-slate-200 sticky top-6">
-            <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">Dispatch Summary</h3>
+          <Card className="p-5 lg:sticky lg:top-6">
+            <h3 className="text-base font-semibold text-slate-900 mb-4">Dispatch summary</h3>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <div className="text-sm text-slate-500">Selected Takas</div>
+                <div className="text-xs font-bold text-slate-500">Selected takas</div>
                 <div className={`text-3xl font-bold ${selectedTakaIds.size > 0 ? 'text-primary-700' : 'text-slate-400'}`}>
                   {selectedTakaIds.size}
                 </div>
               </div>
               <div>
-                <div className="text-sm text-slate-500">Total Meters</div>
+                <div className="text-xs font-bold text-slate-500">Total meters</div>
                 <div className={`text-2xl font-bold ${selectedTakaIds.size > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
                   {selectedMeters.toFixed(2)}
                 </div>
@@ -246,17 +273,36 @@ export default function CreateDispatchPage() {
               </div>
             )}
             <Alert className="mt-4">{error}</Alert>
-            
-            <div className="mt-8 pt-6 border-t border-slate-200">
-              <Button type="submit" className="w-full h-12 text-base shadow-sm" disabled={busy || selectedTakaIds.size === 0 || !formData.mill_id}>
-                <ShieldCheck className="w-5 h-5 mr-2" />
-                {busy ? 'Saving…' : 'Send to Mill'}
+
+            <div className="mt-6 pt-5 border-t border-slate-200 flex gap-3">
+              {!desktop && <Button type="button" variant="outline" onClick={() => setStep(1)}><ArrowLeft className="w-4 h-4 mr-2" /> Details</Button>}
+              <Button type="submit" className="flex-1 h-12 text-base" disabled={busy || selectedTakaIds.size === 0 || !formData.mill_id}>
+                <ShieldCheck className="w-5 h-5 mr-2" /> Send to Mill
               </Button>
             </div>
           </Card>
         </div>
+        )}
       </form>
       </div>
+
+      <Modal isOpen={confirmOpen} onClose={() => !busy && setConfirmOpen(false)} title="Confirm mill dispatch" maxWidth="max-w-xl">
+        <DetailList items={[
+          { label: 'Mill', value: mills.find(m => String(m.id) === String(formData.mill_id))?.name },
+          { label: 'Date', value: fmtDate(formData.date) },
+          { label: 'Takas', value: selectedTakaIds.size },
+          { label: 'Total meters', value: `${fmtM(selectedMeters)} m` },
+          { label: 'Qualities', value: [...new Set(picked.map(t => t.nick_name))].join(', ') },
+          { label: 'Branches', value: [...new Set(picked.map(t => t.branch_name).filter(Boolean))].join(', ') },
+          { label: 'Pick from', value: `${pickList.length} rack${pickList.length === 1 ? '' : 's'}` },
+          { label: 'Notes', value: formData.notes, wide: true },
+        ]} />
+        <Alert className="mt-4">{error}</Alert>
+        <div className="mt-6 flex justify-end gap-3">
+          <Button type="button" variant="outline" disabled={busy} onClick={() => setConfirmOpen(false)}>Edit again</Button>
+          <Button type="button" disabled={busy} onClick={doSave}><ShieldCheck className="w-4 h-4 mr-2" />{busy ? 'Saving…' : 'Confirm & send'}</Button>
+        </div>
+      </Modal>
     </Drawer>
   );
 }
