@@ -27,11 +27,11 @@ export async function seed() {
   const wBal = await M('weavers', { group_id: gBalaji, name: 'Balaji Silk Mills', gstin: '27AABCB9988L1Z9', phone: '99090 45678' })
   await M('weavers', { group_id: gBalaji, name: 'Balaji Synthetics', gstin: '27AABCB7766M1Z1', phone: '99090 45679' })
   const gKrishna = await M('weaver_groups', { name: 'Krishna Tex', contact: 'Jignesh Shah', phone: '97240 33445', city: 'Surat' })
-  await M('weavers', { group_id: gKrishna, name: 'Krishna Fabrics', gstin: '24AAFCK4455Q1Z3', phone: '97240 33445' })
+  const wKri = await M('weavers', { group_id: gKrishna, name: 'Krishna Fabrics', gstin: '24AAFCK4455Q1Z3', phone: '97240 33445' })
 
   const mLaxmi = await M('mills', { name: 'Laxmi Dyeing Mills', contact: 'Sureshbhai', phone: '93770 12121', city: 'Pandesara, Surat', gstin: '24AAACL1234F1Z5' })
   const mShiv = await M('mills', { name: 'Shiv Shakti Process House', contact: 'Vikram Jain', phone: '94260 34343', city: 'Sachin GIDC', gstin: '24AABCS5678K1Z2' })
-  await M('mills', { name: 'Om Dyeing House', contact: 'Paresh Desai', phone: '98980 56565', city: 'Palsana', gstin: '24AAACO9999T1Z7' })
+  const mOm = await M('mills', { name: 'Om Dyeing House', contact: 'Paresh Desai', phone: '98980 56565', city: 'Palsana', gstin: '24AAACO9999T1Z7' })
 
   const cRadhe = await M('customers', { name: 'Radhe Sarees', contact: 'Nilesh', phone: '98790 10101', city: 'Kolkata', gstin: '19AAACR1234F1Z5' })
   await M('customers', { name: 'Kalpana Fashion', contact: 'Kalpana Mehta', phone: '98111 20202', city: 'Delhi', gstin: '07AABCK9988L1Z9' })
@@ -65,7 +65,7 @@ export async function seed() {
   // ---- grey POs (several stay open so the order screen shows pending numbers)
   const po1 = await repo.createPO({ po_no: 'PO-0001', po_date: daysAgo(40), group_id: gGanesh, quality_id: qGold, meters: 50000, rate: 3.5, taka_length: 100, due_date: daysAgo(-10), notes: 'Paper PO #GT/118' })
   const po2 = await repo.createPO({ po_no: 'PO-0002', po_date: daysAgo(30), group_id: gBalaji, quality_id: qSilver, meters: 20000, rate: 4.2, taka_length: 100, due_date: daysAgo(-5) })
-  await repo.createPO({ po_no: 'PO-0003', po_date: daysAgo(6), group_id: gKrishna, quality_id: qRoyal, meters: 15000, rate: 5.1, taka_length: 100, due_date: daysAgo(-25) })
+  const po3 = await repo.createPO({ po_no: 'PO-0003', po_date: daysAgo(6), group_id: gKrishna, quality_id: qRoyal, meters: 15000, rate: 5.1, taka_length: 100, due_date: daysAgo(-25) })
   const po4 = await repo.createPO({ po_no: 'PO-0004', po_date: daysAgo(60), group_id: gGanesh, quality_id: qSilver, meters: 3000, rate: 4.0, taka_length: 100 })
   await repo.createPO({ po_no: 'PO-0005', po_date: daysAgo(3), group_id: gBalaji, quality_id: qVelvet, meters: 8000, rate: 4.8, taka_length: 100 })
 
@@ -96,7 +96,9 @@ export async function seed() {
   const pg3 = await repo.createProgram({ mill_id: mShiv, quality_id: qSilver, date: daysAgo(10), lines: [{ shade_id: SH['Royal Blue'], taka_count: 8 }, { shade_id: SH['Bandhani Print'], taka_count: 4 }] })
 
   // ---- mill return challans (partial): the finished meter is entered, the grey meter comes from the weaver challan
-  const finish = (t) => ({ id: t.id, finished_meter: Math.round(t.grey_meter * (0.9 + rnd() * 0.04) * 100) / 100 })
+  // the yield differs per mill: Laxmi keeps ~95%, Shiv Shakti only ~89% (so the shrinkage report has something to compare)
+  const finishAt = (lo, hi) => (t) => ({ id: t.id, finished_meter: Math.round(t.grey_meter * (lo + rnd() * (hi - lo)) * 100) / 100 })
+  const finish = finishAt(0.94, 0.97), finishShiv = finishAt(0.87, 0.9)
   const p1 = await repo.getProgram(pg1)
   const lineOf = (p, shadeId) => p.lines.find((l) => l.shade_id === shadeId)
   const blue = p1.takas.filter((t) => t.program_line_id === lineOf(p1, SH['Royal Blue']).id)
@@ -105,7 +107,7 @@ export async function seed() {
   const p2 = await repo.getProgram(pg2)
   await repo.createFinishedReceipt({ program_id: pg2, challan_no: 'LDM-9102', date: daysAgo(3), rows: p2.takas.filter((t) => t.program_line_id === lineOf(p2, SH['Teal']).id).slice(0, 10).map(finish) })
   const p3 = await repo.getProgram(pg3)
-  await repo.createFinishedReceipt({ program_id: pg3, challan_no: 'SSP-310', date: daysAgo(2), rows: p3.takas.filter((t) => t.program_line_id === lineOf(p3, SH['Royal Blue']).id).map(finish) })
+  await repo.createFinishedReceipt({ program_id: pg3, challan_no: 'SSP-310', date: daysAgo(2), rows: p3.takas.filter((t) => t.program_line_id === lineOf(p3, SH['Royal Blue']).id).map(finishShiv) })
 
   // ---- folding: 22 takas of Gold Lava, two of them damaged (one with a note, one with a photo)
   const fin = (await listTakas(`WHERE t.status='FINISHED' AND p.quality_id=?`, [qGold])).slice(0, 22)
@@ -125,6 +127,32 @@ export async function seed() {
   await seedClientChanges2({ SH, qGold, cRadhe, wGFab, wGFas, bSurat })
   await seedClientChanges3({ SH, mLaxmi, r3, po1, po2, wGFab, wBal })
   await seedClientChanges4({ SH, qGold, cRadhe })
+  await seedShrinkageDemo({ SH, qRoyal, qSilver, po3, wKri, mOm })
+}
+
+/**
+ * A small third batch for the shrinkage report: Royal Slub straight to Om Dyeing House (a third mill, a third quality),
+ * plus a few Silver Wave / Royal Slub takas folded so the folding step also shows up outside Gold Lava. Kept deliberately small.
+ */
+async function seedShrinkageDemo({ SH, qRoyal, qSilver, po3, wKri, mOm }) {
+  try {
+    await repo.createReceipt({ po_id: po3, weaver_id: wKri, challan_no: 'KF-310', date: daysAgo(14), destination: 'MILL', mill_id: mOm, takas: takas(12, 1) })
+    const pg = await repo.createProgram({ mill_id: mOm, quality_id: qRoyal, date: daysAgo(12), lines: [{ shade_id: SH['Rani Pink'], taka_count: 7 }, { shade_id: SH['Emerald'], taka_count: 5 }] })
+    const P = await repo.getProgram(pg)
+    const fin = (t) => ({ id: t.id, finished_meter: Math.round(t.grey_meter * (0.925 + rnd() * 0.03) * 100) / 100 })
+    await repo.createFinishedReceipt({ program_id: pg, challan_no: 'ODH-205', date: daysAgo(6), rows: P.takas.map(fin) })
+    const ready = [
+      ...(await listTakas(`WHERE t.status='FINISHED' AND p.quality_id=?`, [qRoyal])).slice(0, 8),
+      ...(await listTakas(`WHERE t.status='FINISHED' AND p.quality_id=?`, [qSilver])).slice(0, 6),
+    ]
+    await repo.foldTakas(ready.map((t, i) => ({
+      id: t.id,
+      folded_meter: Math.round((t.finished_meter - (0.6 + rnd() * 1.4)) * 100) / 100,
+      damage: i === 5 ? { meters: 3.5, notes: 'Colour patch near the end' } : undefined,
+    })), daysAgo(3))
+  } catch (e) {
+    console.warn('Demo data for the shrinkage report was only partly created:', e?.message)
+  }
 }
 
 /** Job work, withdrawals, grey sales and closed orders — guarded so a short stock never breaks the demo start-up. */
