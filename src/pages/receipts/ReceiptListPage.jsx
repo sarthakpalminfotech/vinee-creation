@@ -45,7 +45,7 @@ export default function ReceiptListPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Grey Challans (Receipts)" description="Manage incoming grey fabric from weavers.">
-        <ListFilter values={flt} onChange={setFlt} fields={[{ key: 'weaver_id', label: 'Party (firm)', options: uniqueOptions(receipts, (x) => x.weaver_id, (x) => x.weaver_name) }, { key: 'po_id', label: 'PO', options: uniqueOptions(receipts, (x) => x.po_id, (x) => x.po_no) }, { key: 'quality_id', label: 'Quality', options: uniqueOptions(receipts, (x) => x.quality_id, (x) => x.nick_name) }, { key: 'destination', label: 'Destination', options: [['GODOWN', 'Our godown'], ['MILL', 'Direct to mill']] }, { key: 'branch_id', label: 'Branch', options: uniqueOptions(receipts, (x) => x.branch_id, (x) => x.branch_name) }]} />
+        <ListFilter values={flt} onChange={setFlt} fields={[{ key: 'weaver_id', label: 'Associated party', options: uniqueOptions(receipts, (x) => x.weaver_id, (x) => x.weaver_name) }, { key: 'po_id', label: 'PO', options: uniqueOptions(receipts, (x) => x.po_id, (x) => x.po_no) }, { key: 'quality_id', label: 'Quality', options: uniqueOptions(receipts, (x) => x.quality_id, (x) => x.nick_name) }, { key: 'destination', label: 'Destination', options: [['GODOWN', 'Our godown'], ['MILL', 'Direct to mill']] }, { key: 'branch_id', label: 'Branch', options: uniqueOptions(receipts, (x) => x.branch_id, (x) => x.branch_name) }]} />
         <SearchToggle value={search} onChange={setSearch} placeholder="Search challan, PO, weaver or quality..." />
         <Button onClick={() => navigate('/receipts/new')}><Plus className="w-4 h-4 mr-2" /> Receive Challan</Button>
       </PageHeader>
@@ -55,9 +55,9 @@ export default function ReceiptListPage() {
           <thead>
             <tr>
               <Th>Challan No</Th>
-              <Th>Date</Th>
+              <Th className="hidden xl:table-cell">Date</Th>
               <Th>PO & Quality</Th>
-              <Th>Weaver Firm</Th>
+              <Th>Associated party</Th>
               <Th>Destination</Th>
               <Th className="text-right">Quantity</Th>
             </tr>
@@ -67,11 +67,13 @@ export default function ReceiptListPage() {
               <tr key={r.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => navigate(`/receipts/${r.id}`)}>
                 <Td className="font-semibold text-slate-900">
                   <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-400" />
+                    <FileText className="hidden xl:block w-4 h-4 text-slate-400" />
                     {r.challan_no}
                   </div>
+                  {/* tablets: the date sits under the challan number instead of taking its own column */}
+                  <div className="xl:hidden text-xs font-normal text-slate-500">{fmtDate(r.date)}</div>
                 </Td>
-                <Td>{fmtDate(r.date)}</Td>
+                <Td className="hidden xl:table-cell">{fmtDate(r.date)}</Td>
                 <Td>
                   <div className="font-medium text-slate-900">{r.po_no}</div>
                   <div className="text-xs text-slate-500">{r.original_name}</div>
@@ -79,8 +81,8 @@ export default function ReceiptListPage() {
                 <Td className="font-medium text-slate-900">{r.weaver_name}</Td>
                 <Td>
                   {r.destination === 'MILL' ? 
-                    <span className="inline-flex items-center text-sky-600 text-xs font-medium bg-sky-50 px-2 py-1 rounded"><ShieldCheck className="w-3.5 h-3.5 mr-1" /> {r.mill_name || 'Mill'}</span> : 
-                    <span className="inline-flex items-center text-slate-600 text-xs font-medium bg-slate-100 px-2 py-1 rounded"><MapPin className="w-3.5 h-3.5 mr-1" /> {r.branch_name || 'Godown'}</span>
+                    <span className="inline-flex items-center text-sky-700 text-xs font-medium bg-sky-50 px-2 py-1 rounded-full"><ShieldCheck className="w-3.5 h-3.5 mr-1" /> {r.mill_name || 'Mill'}</span> : 
+                    <span className="inline-flex items-center text-slate-600 text-xs font-medium bg-slate-100 px-2 py-1 rounded-full"><MapPin className="w-3.5 h-3.5 mr-1" /> {r.branch_name || 'Godown'}</span>
                   }
                 </Td>
                 <Td><Qty variant="cell" takas={r.taka_count} meters={r.total_m} /></Td>

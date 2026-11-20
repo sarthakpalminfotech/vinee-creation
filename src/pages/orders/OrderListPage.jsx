@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Table, Th, Td, Badge, Empty, LoadState, Pager, usePaged } from '../../components/ui';
 import { fmtM, fmtDate } from '../../lib/format';
 import { Plus, ShoppingCart } from 'lucide-react';
 import * as repo from '../../db/repo';
 import { useDbVersion } from '../../lib/live';
-import { Qty } from '../../components/kit';
+import { Qty, Chip } from '../../components/kit';
 import { SearchToggle, ListFilter, uniqueOptions, inDateRange } from '../../components/kit';
+import { PaymentBadge } from './OrderPayments';
 
 export default function OrderListPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
   const [search, setSearch] = useState('');
-  const [flt, setFlt] = useState({});
+  const [params] = useSearchParams();
+  const [flt, setFlt] = useState(() => (params.get('payment') ? { payment: params.get('payment') } : {}));
   const [error, setError] = useState('');
 
   const dbVersion = useDbVersion();
@@ -37,7 +39,7 @@ export default function OrderListPage() {
     o.nick_name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const filtered = searched.filter(o => (!flt.customer_id || String(o.customer_id) === flt.customer_id) && (!flt.quality_id || String(o.quality_id) === flt.quality_id) && (!flt.status || o.status === flt.status) && inDateRange(o.date, flt));
+  const filtered = searched.filter(o => (!flt.customer_id || String(o.customer_id) === flt.customer_id) && (!flt.quality_id || String(o.quality_id) === flt.quality_id) && (!flt.status || o.status === flt.status) && (!flt.payment || (flt.payment === 'due' ? o.payment.due : !o.payment.due)) && inDateRange(o.date, flt));
 
   const getStatusBadge = (status) => {
     if (status === 'DONE') return <Badge variant="success">Completed</Badge>;
@@ -50,7 +52,7 @@ export default function OrderListPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Customer Orders" description="Manage sales orders and allocate ready takas.">
-        <ListFilter values={flt} onChange={setFlt} fields={[{ key: 'customer_id', label: 'Customer', options: uniqueOptions(orders, (x) => x.customer_id, (x) => x.customer_name) }, { key: 'quality_id', label: 'Quality', options: uniqueOptions(orders, (x) => x.quality_id, (x) => x.nick_name) }, { key: 'status', label: 'Status', options: [['OPEN', 'Open'], ['DONE', 'Completed']] }]} />
+        <ListFilter values={flt} onChange={setFlt} fields={[{ key: 'customer_id', label: 'Customer', options: uniqueOptions(orders, (x) => x.customer_id, (x) => x.customer_name) }, { key: 'quality_id', label: 'Quality', options: uniqueOptions(orders, (x) => x.quality_id, (x) => x.nick_name) }, { key: 'status', label: 'Status', options: [['OPEN', 'Open'], ['DONE', 'Completed']] }, { key: 'payment', label: 'Payment', options: [['due', 'Payment due'], ['ok', 'No payment due']] }]} />
         <SearchToggle value={search} onChange={setSearch} placeholder="Search order no, customer, or quality..." />
         <Button onClick={() => navigate('/orders/new')}><Plus className="w-4 h-4 mr-2" /> New Order</Button>
       </PageHeader>
@@ -80,10 +82,11 @@ export default function OrderListPage() {
                 </Td>
                 <Td>
                   <div className="font-medium text-slate-900">{o.nick_name}</div>
+                  {Number(o.job_work) === 1 && <Chip tone="amber" className="mt-1">Job work: {o.job_type || 'required'}</Chip>}
                 </Td>
                 <Td><Qty variant="cell" takas={o.total_takas > 0 ? o.total_takas : null} meters={o.total_meters > 0 ? o.total_meters : null} /></Td>
                 <Td><Qty variant="cell" tone={o.lines.length > 0 && o.lines.every(repo.orderLineDone) ? 'emerald' : 'slate'} takas={o.allocated} meters={o.allocated_m} /></Td>
-                <Td>{getStatusBadge(o.status)}</Td>
+                <Td><div className="flex flex-col items-start gap-1">{getStatusBadge(o.status)}<PaymentBadge payment={o.payment} /></div></Td>
               </tr>
             ))}
             {filtered.length === 0 && (

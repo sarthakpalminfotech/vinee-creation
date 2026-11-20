@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Select, Field, Th, Td, Alert, Modal, useAction } from '../../components/ui';
 import { ArrowLeft, ArrowRight, Save, Plus, Trash2, ClipboardPaste, AlertTriangle, Pencil, Check } from 'lucide-react';
 import * as repo from '../../db/repo';
-import { Qty, DetailList, StepTabs, useIsDesktop } from '../../components/kit';
+import { Qty, DetailList, StepTabs, useIsDesktop, ActionBar } from '../../components/kit';
 import { fmtM, fmtDate } from '../../lib/format';
 
 const METER_RE = /^\d+(\.\d{1,2})?$/;
@@ -39,14 +39,14 @@ const Row = memo(function Row({ row, idx, dup, nominal, locked, editNos, onChang
           <Input id={`no-${row.id}`} value={row.taka_no} onChange={(e) => onChange(row.id, 'taka_no', e.target.value)} error={dup} className="h-10" aria-label={`Taka number row ${idx + 1}`}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById(`m-${row.id}`)?.focus(); } }} />
         ) : (
-          <span className={`pl-2 font-semibold ${dup ? 'text-red-600' : 'text-slate-900'}`}>{row.taka_no || '—'}</span>
+          <span className={`pl-2 text-xs ${dup ? 'font-semibold text-red-600' : 'text-slate-400'}`}>#{row.taka_no || '—'}</span>
         )}
       </Td>
       <Td className="p-1.5">
         <Input id={`m-${row.id}`} disabled={locked} inputMode="decimal" value={row.meter} aria-label={`Meters row ${idx + 1}`}
           onChange={(e) => onChange(row.id, 'meter', e.target.value)} error={badMeter}
           onPaste={(e) => onPaste(e, row.id)}
-          className={`h-10 ${outlier ? 'border-amber-300 bg-amber-50 text-amber-900' : ''}`}
+          className={`h-11 text-base font-semibold tabular-nums ${outlier ? 'border-amber-300 bg-amber-50 text-amber-900' : ''}`}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onEnter(row.id); } }} />
       </Td>
       <Td className="text-center w-24">
@@ -77,14 +77,13 @@ export default function CreateReceiptPage() {
   const [pos, setPos] = useState([]);
   const [weavers, setWeavers] = useState([]);
   const [mills, setMills] = useState([]);
-  const [locations, setLocations] = useState([]);
   const [branches, setBranches] = useState([]);
   const [locked, setLocked] = useState(false); // edit mode: takas already moved on, only the header can change
   const [editReceipt, setEditReceipt] = useState(null);
 
   const [formData, setFormData] = useState(() => ({
     po_id: initialPoId, weaver_id: '', challan_no: '', date: new Date().toISOString().slice(0, 10),
-    destination: 'GODOWN', branch_id: '', mill_id: '', location_id: '', notes: '', image_url: '',
+    destination: 'GODOWN', branch_id: '', mill_id: '', notes: '', image_url: '',
   }));
   const [rows, setRows] = useState([]);
   // auto numbering: taka no = serial (first no + position) until the user edits numbers or pastes numbered rows
@@ -101,16 +100,16 @@ export default function CreateReceiptPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [allPos, allWeavers, allMills, allLocs, allBranches] = await Promise.all([repo.listPOs(), repo.listWeavers(), repo.listMills(), repo.listLocations(), repo.listBranches()]);
+        const [allPos, allWeavers, allMills, allBranches] = await Promise.all([repo.listPOs(), repo.listWeavers(), repo.listMills(), repo.listBranches()]);
         setPos(isEdit ? allPos : allPos.filter((p) => p.status === 'OPEN' || p.status === 'PARTIAL' || p.status === 'RECEIVED'));
-        setWeavers(allWeavers); setMills(allMills); setLocations(allLocs); setBranches(allBranches);
+        setWeavers(allWeavers); setMills(allMills); setBranches(allBranches);
         if (isEdit) {
           const rc = await repo.getReceipt(Number(editId));
           if (!rc) throw new Error('Challan not found');
           setEditReceipt(rc);
           setFormData({
             po_id: String(rc.po_id), weaver_id: String(rc.weaver_id), challan_no: rc.challan_no, date: rc.date || '', destination: rc.destination,
-            branch_id: rc.branch_id ? String(rc.branch_id) : '', mill_id: rc.mill_id ? String(rc.mill_id) : '', location_id: '', notes: rc.notes || '', image_url: rc.image_url || '',
+            branch_id: rc.branch_id ? String(rc.branch_id) : '', mill_id: rc.mill_id ? String(rc.mill_id) : '', notes: rc.notes || '', image_url: rc.image_url || '',
           });
           setRows(rc.takas.map((t) => newRow(t.taka_no, t.grey_meter, t.id)));
           const okStatus = rc.destination === 'MILL' ? 'MILL_GREY' : 'GODOWN_GREY';
@@ -126,7 +125,6 @@ export default function CreateReceiptPage() {
   const availableWeavers = useMemo(() => (selectedPo ? weavers.filter((w) => w.group_id === selectedPo.group_id) : []), [weavers, selectedPo]);
 
   const setField = (k, v) => setFormData((p) => ({ ...p, [k]: v }));
-  const branchLocations = useMemo(() => locations.filter((l) => String(l.branch_id) === String(formData.branch_id)), [locations, formData.branch_id]);
   const changePo = (id) => setFormData((p) => ({ ...p, po_id: id, weaver_id: '' }));
 
   // rows as they will be saved: in auto mode the serial is the taka number
@@ -221,7 +219,7 @@ export default function CreateReceiptPage() {
 
   const checkDetails = () => {
     if (!formData.po_id) throw new Error('Choose the purchase order');
-    if (!formData.weaver_id) throw new Error('Choose the party (firm) that sent this challan');
+    if (!formData.weaver_id) throw new Error('Choose the associated party that sent this challan');
     if (!formData.challan_no.trim()) throw new Error('Enter the weaver challan number');
     if (formData.destination === 'MILL' && !formData.mill_id) throw new Error('Choose the mill it was delivered to');
     if (formData.destination === 'GODOWN' && !formData.branch_id) throw new Error('Choose the branch where this grey was received');
@@ -261,33 +259,34 @@ export default function CreateReceiptPage() {
   const weaver = weavers.find((w) => String(w.id) === String(formData.weaver_id));
   const branch = branches.find((b) => String(b.id) === String(formData.branch_id));
   const mill = mills.find((m) => String(m.id) === String(formData.mill_id));
-  const rack = locations.find((l) => String(l.id) === String(formData.location_id));
   const nos = used.map((r) => r.taka_no);
 
   return (
     <div className="w-full">
-      <div className="max-w-5xl mx-auto">
-        <PageHeader title={isEdit ? `Edit Challan ${editReceipt?.challan_no || ''}` : 'Receive Grey Challan'}>
-          <Button variant="ghost" onClick={() => navigate(isEdit ? `/receipts/${editId}` : '/receipts')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
+      <div className="page-w">
+        <PageHeader title={isEdit ? `Edit Challan ${editReceipt?.challan_no || ''}` : 'Receive Grey Challan'}
+          onBack={() => navigate(isEdit ? `/receipts/${editId}` : '/receipts')}
+        >
         </PageHeader>
 
         {!desktop && <StepTabs steps={['Challan details', 'Takas']} step={step} onStep={goStep} />}
 
-        <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
+        <form onSubmit={handleSave}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-[minmax(0,1fr)_340px] gap-6">
+          <div className="lg:col-span-2 xl:col-span-1 min-w-0 space-y-6">
             {show1 && (
             <Card className="p-5">
-              <h3 className="text-base font-semibold text-slate-900 mb-4">Challan details</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <h3 className="text-base font-bold text-forest mb-4">Challan details</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                 <Field label="Purchase order *">
                   <Select required disabled={isEdit} value={formData.po_id} onChange={(e) => changePo(e.target.value)}>
                     <option value="">Select PO...</option>
                     {pos.map((p) => <option key={p.id} value={p.id}>{p.po_no} · {p.group_name} · {p.original_name}</option>)}
                   </Select>
                 </Field>
-                <Field label="Party (firm) *">
+                <Field label="Associated party *">
                   <Select required value={formData.weaver_id} onChange={(e) => setField('weaver_id', e.target.value)} disabled={!selectedPo}>
-                    <option value="">{selectedPo ? 'Select party...' : 'Choose a PO first'}</option>
+                    <option value="">{selectedPo ? 'Select associated party...' : 'Choose a PO first'}</option>
                     {availableWeavers.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </Select>
                 </Field>
@@ -319,7 +318,7 @@ export default function CreateReceiptPage() {
                   </label>
                 </div>
                 {formData.destination === 'MILL' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                     <Field label="Mill *">
                       <Select required disabled={isEdit} value={formData.mill_id} onChange={(e) => setField('mill_id', e.target.value)}>
                         <option value="">Select mill...</option>
@@ -328,24 +327,15 @@ export default function CreateReceiptPage() {
                     </Field>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                     <Field label="Received at branch *">
-                      <Select required disabled={isEdit && locked} value={formData.branch_id} onChange={(e) => setFormData((f) => ({ ...f, branch_id: e.target.value, location_id: '' }))}>
+                      <Select required disabled={isEdit && locked} value={formData.branch_id} onChange={(e) => setField('branch_id', e.target.value)}>
                         <option value="">{branches.length ? 'Select branch...' : 'No branches — add one in Masters'}</option>
                         {branches.map((b) => <option key={b.id} value={b.id}>{b.name}{b.city ? ` · ${b.city}` : ''}</option>)}
                       </Select>
                     </Field>
-                    {!isEdit && (
-                      <Field label="Rack (optional)">
-                        <Select value={formData.location_id} disabled={!formData.branch_id} onChange={(e) => setField('location_id', e.target.value)}>
-                          <option value="">{formData.branch_id ? 'Leave unassigned' : 'Choose a branch first'}</option>
-                          {branchLocations.map((l) => <option key={l.id} value={l.id}>{repo.locLabel(l.shop, l.rack)}</option>)}
-                        </Select>
-                      </Field>
-                    )}
                   </div>
                 )}
-                {isEdit && formData.destination === 'GODOWN' && !locked && <p className="text-xs text-amber-600 mt-2">Changing the branch clears the racks of these takas.</p>}
               </div>
 
               {!desktop && (
@@ -360,7 +350,7 @@ export default function CreateReceiptPage() {
             {show2 && (
             <Card className="p-5">
               <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-                <h3 className="text-base font-semibold text-slate-900">Takas ({rows.length})</h3>
+                <h3 className="text-base font-bold text-forest">Takas ({rows.length})</h3>
                 <div className="flex flex-wrap gap-2 items-center">
                   <Button type="button" disabled={locked} variant={editNos ? 'primary' : 'outline'} size="sm" aria-label="Edit taka numbers"
                     onClick={() => { if (!editNos) goManual(); setEditNos(!editNos); }}>
@@ -377,7 +367,7 @@ export default function CreateReceiptPage() {
               {pasteMode && (
                 <div className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
                   {autoNo && <Field label="First taka no" className="w-32"><Input value={startNo} onChange={(e) => setStartNo(e.target.value)} /></Field>}
-                  <textarea className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" rows={4}
+                  <textarea className="w-full rounded-md border border-slate-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-primary-500" rows={4}
                     value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder={'96.5\n102.58\n94.69\n103.5'} />
                   <Button type="button" onClick={processBulkPaste} disabled={!pasteText.trim()}>Add these takas</Button>
                 </div>
@@ -409,10 +399,10 @@ export default function CreateReceiptPage() {
             )}
           </div>
 
-          {show2 && (
+          {desktop && (
           <div className="space-y-6">
             <Card className="p-5 lg:sticky lg:top-0">
-              <h3 className="text-base font-semibold text-slate-900 mb-4">Receipt summary</h3>
+              <h3 className="text-base font-bold text-forest mb-4">Receipt summary</h3>
               <Qty className="mb-4" takas={filled} meters={totalMeters} />
               <DetailList className="pt-4 border-t border-slate-100" items={[
                 { label: 'Average', value: `${filled ? (totalMeters / filled).toFixed(2) : '0.00'} m` },
@@ -421,7 +411,6 @@ export default function CreateReceiptPage() {
               {issues.length > 0 && <Alert className="mt-4">{issues.join(' · ')}</Alert>}
               <Alert className="mt-4">{error}</Alert>
               <div className="mt-5 pt-5 border-t border-slate-100 flex gap-3">
-                {!desktop && <Button type="button" variant="outline" onClick={() => setStep(1)}><ArrowLeft className="w-4 h-4 mr-2" /> Details</Button>}
                 <Button type="submit" className="flex-1 h-12 text-base" disabled={busy || filled === 0}>
                   <Save className="w-5 h-5 mr-2" />{isEdit ? 'Save changes' : 'Save Receipt'}
                 </Button>
@@ -429,17 +418,30 @@ export default function CreateReceiptPage() {
             </Card>
           </div>
           )}
+        </div>
+        {/* tablet / phone, takas step: running totals + save pinned to the bottom while the taka grid scrolls */}
+        {!desktop && step === 2 && (
+          <ActionBar>
+            {(issues.length > 0 || error) && <div className="mb-3 space-y-2">{issues.length > 0 && <Alert>{issues.join(' · ')}</Alert>}<Alert>{error}</Alert></div>}
+            <div className="flex items-center gap-3">
+              <Button type="button" variant="outline" className="h-12" onClick={() => setStep(1)}><ArrowLeft className="w-4 h-4 mr-2" /> Details</Button>
+              <div className="min-w-0 flex-1 text-center"><Qty variant="inline" takas={filled} meters={totalMeters} className="text-base" /></div>
+              <Button type="submit" className="h-12 px-6 text-base" disabled={busy || filled === 0}>
+                <Save className="w-5 h-5 mr-2" />{isEdit ? 'Save changes' : 'Save Receipt'}
+              </Button>
+            </div>
+          </ActionBar>
+        )}
         </form>
       </div>
 
       <Modal isOpen={confirmOpen} onClose={() => !busy && setConfirmOpen(false)} title="Confirm receipt" maxWidth="max-w-xl">
         <DetailList items={[
           { label: 'Purchase order', value: selectedPo ? `${selectedPo.po_no} · ${selectedPo.nick_name}` : '—' },
-          { label: 'Party', value: weaver?.name },
+          { label: 'Associated party', value: weaver?.name },
           { label: 'Challan no', value: formData.challan_no },
           { label: 'Date', value: fmtDate(formData.date) },
           { label: formData.destination === 'MILL' ? 'Direct to mill' : 'Branch', value: formData.destination === 'MILL' ? mill?.name : branch?.name },
-          { label: 'Rack', value: rack ? repo.locLabel(rack.shop, rack.rack) : null },
           { label: 'Takas', value: filled },
           { label: 'Total meters', value: `${fmtM(totalMeters)} m` },
           { label: 'Taka numbers', value: nos.length ? `${nos[0]} – ${nos[nos.length - 1]}` : null },

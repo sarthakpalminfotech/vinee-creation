@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Select, Field, Drawer, Alert, useAction } from '../../components/ui';
+import { ActionBar } from '../../components/kit';
 import { ArrowLeft, Save, FileImage, ChevronDown } from 'lucide-react';
 import * as repo from '../../db/repo';
 
@@ -99,23 +100,24 @@ export default function CreatePoPage() {
 
   return (
     <div className="w-full">
-      <div className="max-w-5xl mx-auto">
-        <PageHeader title={isEdit ? `Edit PO ${formData.po_no}` : 'Create Grey PO'}>
-          <Button variant="ghost" onClick={() => navigate(isEdit ? `/po/${editId}` : '/po')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
+      <div className="page-w">
+        <PageHeader title={isEdit ? `Edit PO ${formData.po_no}` : 'Create Grey PO'}
+          onBack={() => navigate(isEdit ? `/po/${editId}` : '/po')}
+        >
         </PageHeader>
 
-      <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 space-y-5">
+      <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-[minmax(0,1fr)_340px] gap-5">
+        <div className="lg:col-span-2 xl:col-span-1 min-w-0 space-y-5">
           <Card className="p-5">
-            <h3 className="text-base font-semibold text-slate-900 mb-4">Order details</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-2 gap-4">
+            <h3 className="text-base font-bold text-forest mb-4">Order details</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-4">
               <Field label="PO number *">
                 <Input required placeholder="e.g. GT/118" value={formData.po_no} onChange={set('po_no')} />
               </Field>
               <Field label="PO date *">
                 <Input type="date" required value={formData.po_date} onChange={set('po_date')} />
               </Field>
-              <Field label="Party group *">
+              <Field label="Firm *">
                 <Select required disabled={receiptsExist} value={formData.group_id} onChange={set('group_id')}>
                   <option value="">Select group...</option>
                   {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -128,8 +130,8 @@ export default function CreatePoPage() {
           </Card>
 
           <Card className="p-5">
-            <h3 className="text-base font-semibold text-slate-900 mb-4">Item & pricing</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-2 gap-4">
+            <h3 className="text-base font-bold text-forest mb-4">Item & pricing</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-4">
               <Field label="Quality *">
                 <Select required disabled={receiptsExist} value={formData.quality_id} onChange={handleQualityChange}>
                   <option value="">Select quality...</option>
@@ -156,7 +158,7 @@ export default function CreatePoPage() {
               <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform ${infoOpen ? 'rotate-180' : ''}`} />
             </button>
             {infoOpen && (
-              <div className="px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                 <Field label="Notes">
                   <Input value={formData.notes} onChange={set('notes')} />
                 </Field>
@@ -170,9 +172,9 @@ export default function CreatePoPage() {
             )}
           </Card>
 
-          {/* tablet / phone: one compact summary row instead of the tall side card */}
-          <Card className="p-4 lg:hidden">
-            <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+          {/* tablet / phone: totals + save pinned to the bottom of the screen instead of the tall side card */}
+          <ActionBar>
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
               <div>
                 <div className="text-xs font-bold text-slate-500">Total amount</div>
                 <div className="text-lg font-semibold text-slate-900 tabular-nums">{amount}</div>
@@ -183,12 +185,12 @@ export default function CreatePoPage() {
               </div>
               <div className="ml-auto flex flex-wrap items-center gap-3">{summary}</div>
             </div>
-          </Card>
+          </ActionBar>
         </div>
 
         <div className="hidden lg:block">
           <Card className="p-6 space-y-5">
-            <h3 className="text-base font-semibold text-slate-900">Order summary</h3>
+            <h3 className="text-base font-bold text-forest">Order summary</h3>
             <div>
               <div className="text-xs font-bold text-slate-500">Total amount</div>
               <div className="text-2xl font-semibold text-slate-900 tabular-nums">{amount}</div>

@@ -31,3 +31,19 @@ function compressToDataUrl(file, max = 1000) {
     img.src = URL.createObjectURL(file)
   })
 }
+
+/**
+ * Unsigned upload of any file (audio voice notes use resource_type "auto"). Returns the https URL.
+ * Throws when Cloudinary is not configured or the upload fails — the caller decides on a fallback
+ * (voice notes then stay on this device only, see src/lib/voiceStore.js).
+ */
+export async function uploadMedia(file) {
+  if (!cloudinaryEnabled) throw new Error('Cloudinary is not configured')
+  const fd = new FormData()
+  fd.append('file', file)
+  fd.append('upload_preset', PRESET)
+  fd.append('folder', 'vinee-creation')
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/auto/upload`, { method: 'POST', body: fd })
+  if (!res.ok) throw new Error('Upload failed')
+  return (await res.json()).secure_url
+}

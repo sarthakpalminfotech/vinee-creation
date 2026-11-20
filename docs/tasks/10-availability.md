@@ -1,18 +1,22 @@
-# Customer availability and orders
+# Availability
 
-**Rules:** R-SO-1..2
+**Rules:** R-SO-1
 
 ## What to do
-Availability by quality nickname and shade (finished, in dyeing with program/mill, grey at mill, grey at our place) on its own page and on the order form; orders list/detail.
+Choose the quality first, then its colours. The panel starts with "Open POs: N · Pending: X m" (Open + Partly received POs of the quality, link to the PO list filtered by quality), then per-colour stock (sellable meters), grey at mill, grey at our place by branch.
 
 ## What to check
-Availability for Gold Lava shades 37 + 39 shows all four sections; create an order and see needs vs stock.
+Closed (short) and fully received POs are excluded from the block.
 
 ## Done when
-Panel correct; booking/reservation left as an open question.
+availabilityDetail().openPos is covered in tests/e2e.mjs.
 
 ## Status
-Done (audit session 1, 2026-10-11). Automated coverage: `npm test`. See `docs/AUDIT.md` for the traceability row.
+Done (client changes 1).
 
 ## Files touched
-src/pages/orders/*, src/db/repo.js (availabilityDetail)
+src/pages/orders/AvailabilityPanel.jsx, AvailabilityPage.jsx, CreateOrderPage.jsx, src/db/repo.js
+
+**Client changes 2:** per colour, finished goods are split into plain and job-worked (with job types) plus "At job worker"; a job-work order shows the job-worked stock first.
+## Round 4: stock on the order detail
+`/orders/:id` shows "Available stock" (SPEC R-SO-5): per line ready plain / job-worked (eligible highlighted), to fold, in dyeing with lots, at job worker; once per quality grey and open POs; "Short by" / "Covered"; *Allocate now* button. Right column at ≥ 1280 px.

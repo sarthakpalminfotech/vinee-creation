@@ -1,56 +1,44 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { PageHeader, Card, Select, Input, Button, Field, Alert, LoadState } from '../../components/ui';
+import { ColourSelect } from '../../components/kit';
 import { Plus, Trash2 } from 'lucide-react';
 import { AvailabilityPanel, useAvailability } from './AvailabilityPanel';
 import * as repo from '../../db/repo';
-import { useDbVersion } from '../../lib/live';
 
 let n = 0;
 export default function AvailabilityPage() {
   const [qualities, setQualities] = useState([]);
-  const [shades, setShades] = useState([]);
-  const [items, setItems] = useState([]);
+  const [colours, setColours] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [qualityId, setQualityId] = useState('');
   const [lines, setLines] = useState([]);
 
-  const dbVersion = useDbVersion();
   useEffect(() => {
-    Promise.all([repo.listQualities(), repo.listShades(), repo.listItems()]).then(([q, s, i]) => { setQualities(q); setShades(s); setItems(i); }).catch((e) => setError(e.message)).finally(() => setLoading(false));
-  }, [dbVersion]);
+    repo.listQualities().then(setQualities).catch((e) => setError(e.message)).finally(() => setLoading(false));
+  }, []);
+  // choose the quality first, then its colours
+  useEffect(() => {
+    let live = true;
+    setLines([]);
+    if (!qualityId) { setColours([]); return undefined; }
+    repo.listQualityColours(qualityId).then((c) => live && setColours(c)).catch((e) => live && setError(e.message));
+    return () => { live = false; };
+  }, [qualityId]);
 
   const ids = lines.map((l) => Number(l.shade_id)).filter(Boolean);
   const { data, error: aErr } = useAvailability(qualityId, ids);
   const needs = Object.fromEntries(lines.filter((l) => l.shade_id).map((l) => [Number(l.shade_id), l.takas]));
   const upd = (id, k, v) => setLines((ls) => ls.map((l) => (l.id === id ? { ...l, [k]: v } : l)));
-
-  // choose by item code: sets the quality and puts that colour on the list
-  const pickItem = (itemId) => {
-    const it = items.find((i) => String(i.id) === String(itemId));
-    if (!it) return;
-    const sameQuality = String(it.quality_id) === String(qualityId);
-    if (!sameQuality) setQualityId(String(it.quality_id));
-    setLines((ls) => {
-      const base = sameQuality ? ls : [];
-      return !it.shade_id || base.some((l) => String(l.shade_id) === String(it.shade_id)) ? base : [...base, { id: ++n, shade_id: String(it.shade_id), takas: '' }];
-    });
-  };
-  const itemOf = (shadeId) => items.find((i) => String(i.quality_id) === String(qualityId) && String(i.shade_id) === String(shadeId));
+  const used = new Set(lines.map((l) => l.shade_id).filter(Boolean));
 
   if (loading || (error && !qualities.length)) return <LoadState loading={loading} error={error} />;
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <PageHeader title="Customer availability" description="Before taking an order: what we can give for a quality (by nickname) in each shade." />
+    <div className="space-y-6 max-w-4xl xl:max-w-[1800px]">
+      <PageHeader title="Customer availability" description="Before taking an order: what we can give for a quality (by nickname) in each colour." />
       <Card className="p-6 space-y-4">
-        <Field label="Find by item code">
-          <Select id="avail-item" value="" onChange={(e) => pickItem(e.target.value)}>
-            <option value="">Type or pick an item code (e.g. GL-37)…</option>
-            {items.filter((i) => i.shade_id).map((i) => <option key={i.id} value={i.id}>{i.code} · {i.nick_name} · {i.shade_no}{i.shade_name ? ` ${i.shade_name}` : ''}</option>)}
-          </Select>
-        </Field>
-        <div className="flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-slate-200" />or choose a quality and colours<span className="h-px flex-1 bg-slate-200" /></div>
         <Field label="Quality (nickname)">
           <Select id="avail-quality" value={qualityId} onChange={(e) => setQualityId(e.target.value)}>
             <option value="">Select quality…</option>
@@ -61,22 +49,21 @@ export default function AvailabilityPage() {
           <div className="space-y-2">
             {lines.map((l) => (
               <div key={l.id} className="flex gap-3 items-end">
-                <div className="flex-1">
-                  <Select value={l.shade_id} onChange={(e) => upd(l.id, 'shade_id', e.target.value)}>
-                    <option value="">Select shade…</option>
-                    {shades.map((s) => { const it = itemOf(s.id); return <option key={s.id} value={s.id}>{it ? `${it.code} · ` : ''}{s.chart_name}: {s.number}{s.name ? ` - ${s.name}` : ''}</option>; })}
-                  </Select>
+                <div className="flex-1 min-w-0">
+                  <ColourSelect colours={colours} value={l.shade_id} exclude={used} onChange={(v) => upd(l.id, 'shade_id', v)} />
                 </div>
                 <div className="w-32"><Input type="number" min="0" placeholder="Takas wanted" value={l.takas} onChange={(e) => upd(l.id, 'takas', e.target.value)} /></div>
-                <button type="button" className="p-2 text-slate-400 hover:text-red-500" onClick={() => setLines((ls) => ls.filter((x) => x.id !== l.id))} aria-label="Remove shade"><Trash2 className="w-5 h-5" /></button>
+                <button type="button" className="p-2 text-slate-400 hover:text-red-500" onClick={() => setLines((ls) => ls.filter((x) => x.id !== l.id))} aria-label="Remove colour"><Trash2 className="w-5 h-5" /></button>
               </div>
             ))}
-            <Button type="button" variant="outline" size="sm" onClick={() => setLines((ls) => [...ls, { id: ++n, shade_id: '', takas: '' }])}><Plus className="w-4 h-4 mr-1" /> Add shade</Button>
+            {colours.length === 0
+              ? <p className="text-sm text-amber-700">This quality has no colours yet — add them in <Link to="/masters/qualities" className="underline">Masters → Qualities → Colours</Link>.</p>
+              : <Button type="button" variant="outline" size="sm" onClick={() => setLines((ls) => [...ls, { id: ++n, shade_id: '', takas: '' }])}><Plus className="w-4 h-4 mr-1" /> Add colour</Button>}
           </div>
         )}
         <Alert>{aErr}</Alert>
       </Card>
-      {qualityId && <Card className="p-6"><AvailabilityPanel data={data} needs={needs} /></Card>}
+      {qualityId && <Card className="p-6"><AvailabilityPanel data={data} needs={needs} qualityId={qualityId} /></Card>}
     </div>
   );
 }

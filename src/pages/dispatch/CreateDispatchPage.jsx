@@ -1,306 +1,138 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader, Card, Button, Select, Input, Field, Table, Th, Td, Empty, Badge, Drawer, Alert, Modal, Pager, usePaged, useAction } from '../../components/ui';
+import { PageHeader, Card, Button, Select, Input, Field, Drawer, Alert, Modal, useAction } from '../../components/ui';
 import { fmtM, fmtDate } from '../../lib/format';
-import { ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
-import { DetailList, StepTabs, useIsDesktop } from '../../components/kit';
+import { ShieldCheck } from 'lucide-react';
+import { Qty, ActionBar } from '../../components/kit';
 import * as repo from '../../db/repo';
+import PartBuilder from './PartBuilder';
+import { newPart, partTotals, partLabels } from './partLogic';
 
+/** New mill challan: one main challan (e.g. 121) with one sub-challan (121A, 121B …) per weaver challan. */
 export default function CreateDispatchPage() {
   const navigate = useNavigate();
-  const desktop = useIsDesktop();
-  const [step, setStep] = useState(1); // tablet / phone: 1 = dispatch details, 2 = select takas
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [mills, setMills] = useState([]);
-  const [availableTakas, setAvailableTakas] = useState([]);
-
-  const [formData, setFormData] = useState({
-    mill_id: '',
-    date: new Date().toISOString().slice(0, 10),
-    notes: ''
-  });
-
-  const [selectedTakaIds, setSelectedTakaIds] = useState(new Set());
-  const [qualityFilter, setQualityFilter] = useState('');
-  const [challanFilter, setChallanFilter] = useState('');
-  const [branchFilter, setBranchFilter] = useState('');
   const [loadError, setLoadError] = useState('');
+  const [mills, setMills] = useState([]);
+  const [challans, setChallans] = useState([]);
+  const [form, setForm] = useState({ mill_id: '', date: new Date().toISOString().slice(0, 10), main_no: '', notes: '' });
+  const [suggested, setSuggested] = useState('');
+  const [parts, setParts] = useState([newPart()]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const { busy, error, setError, run } = useAction();
 
   useEffect(() => {
-    async function load() {
+    (async () => {
       try {
-        const [allMills, godownTakas] = await Promise.all([
-          repo.listMills(),
-          repo.listTakas("WHERE t.status='GODOWN_GREY'")
-        ]);
-        setMills(allMills);
-        setAvailableTakas(godownTakas);
-      } catch (e) {
-        setLoadError(e.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
+        const [m, c, n] = await Promise.all([repo.listMills(), repo.listGodownChallans(), repo.nextMainNo()]);
+        setMills(m); setChallans(c); setForm((f) => ({ ...f, main_no: String(n) })); setSuggested(String(n));
+      } catch (e) { setLoadError(e.message); } finally { setLoading(false); }
+    })();
   }, []);
 
-  const branches = useMemo(() => [...new Map(availableTakas.map(t => [String(t.branch_id ?? ''), t.branch_name || 'No branch'])).entries()], [availableTakas]);
-  const qualities = useMemo(() => {
-    const qs = new Map();
-    availableTakas.forEach(t => qs.set(t.quality_id, t.nick_name));
-    return Array.from(qs.entries()).map(([id, name]) => ({ id, name }));
-  }, [availableTakas]);
+  const valid = useMemo(() => parts.filter((p) => p.receipt && partTotals(p).takas > 0), [parts]);
+  const labels = useMemo(() => partLabels(valid, form.main_no || '?'), [valid, form.main_no]);
+  const totals = valid.reduce((a, p) => { const t = partTotals(p); return { takas: a.takas + t.takas, meters: Math.round((a.meters + t.meters) * 100) / 100 }; }, { takas: 0, meters: 0 });
 
-  const challans = useMemo(() => {
-    const m = new Map();
-    const pool = availableTakas.filter(t => (!qualityFilter || t.quality_id.toString() === qualityFilter) && (!branchFilter || String(t.branch_id) === branchFilter));
-    pool.forEach(t => { if (!m.has(t.receipt_id)) m.set(t.receipt_id, `${t.challan_no} · ${t.weaver_name} (${pool.filter(x => x.receipt_id === t.receipt_id).length} in godown)`); });
-    return [...m.entries()];
-  }, [availableTakas, qualityFilter, branchFilter]);
-
-  const filteredTakas = useMemo(() => availableTakas.filter(t =>
-    (!qualityFilter || t.quality_id.toString() === qualityFilter) && (!challanFilter || t.receipt_id.toString() === challanFilter) && (!branchFilter || String(t.branch_id) === branchFilter)
-  ), [availableTakas, qualityFilter, challanFilter, branchFilter]);
-  const paged = usePaged(filteredTakas, 100);
-  const picked = useMemo(() => availableTakas.filter(t => selectedTakaIds.has(t.id)), [availableTakas, selectedTakaIds]);
-  const pickList = useMemo(() => repo.groupPickList(picked), [picked]);
-
-  const toggleTaka = (id) => {
-    const next = new Set(selectedTakaIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedTakaIds(next);
-  };
-
-  const selectAllFiltered = () => {
-    const next = new Set(selectedTakaIds);
-    filteredTakas.forEach(t => next.add(t.id));
-    setSelectedTakaIds(next);
-  };
-
-  const selectFirstN = (n) => {
-    const next = new Set(selectedTakaIds);
-    filteredTakas.slice(0, n).forEach(t => next.add(t.id));
-    setSelectedTakaIds(next);
-  };
-
-  const clearSelection = () => {
-    setSelectedTakaIds(new Set());
-  };
-
-  const checkDetails = () => {
-    if (!formData.mill_id) throw new Error('Please select a mill');
-    if (!formData.date) throw new Error('Choose the dispatch date');
-  };
-  const goStep = (n) => {
-    if (n === 2) { try { checkDetails(); setError(''); } catch (e) { setError(e.message); return; } }
-    setStep(n);
-  };
-  // Send button → summary popup → confirm saves
-  const handleSave = (e) => {
-    e.preventDefault();
+  const review = () => {
     try {
-      checkDetails();
-      if (selectedTakaIds.size === 0) throw new Error('Please select at least one taka to send');
-      setError('');
-      setConfirmOpen(true);
-    } catch (err) { setError(err.message); }
+      if (!form.mill_id) throw new Error('Please select a mill');
+      if (!form.date) throw new Error('Choose the date');
+      if (!String(form.main_no).trim()) throw new Error('Enter the challan number');
+      if (parts.some((p) => p.receipt && partTotals(p).takas === 0)) throw new Error('Select at least one taka in every weaver challan, or remove it');
+      if (valid.length === 0) throw new Error('Add a weaver challan and select its takas');
+      setError(''); setConfirmOpen(true);
+    } catch (e) { setError(e.message); }
   };
-  const doSave = () => run(async () => {
-    const id = await repo.createDispatch({ ...formData, taka_ids: Array.from(selectedTakaIds) });
-    navigate(`/dispatch/${id}`);
+  const save = () => run(async () => {
+    const id = await repo.createMillChallan({
+      main_no: String(form.main_no) === suggested ? undefined : form.main_no, mill_id: form.mill_id, date: form.date, notes: form.notes,
+      parts: valid.map((p) => ({ receipt_id: p.receipt.id, taka_ids: p.sel })),
+    });
+    navigate(`/dispatch/${id}/preview`, { replace: true });
   });
 
-  const selectedMeters = availableTakas
-    .filter(t => selectedTakaIds.has(t.id))
-    .reduce((sum, t) => sum + Number(t.grey_meter), 0);
+  if (loading || loadError) return <Drawer isOpen>{loading ? <div className="p-12 text-center text-slate-500">Loading...</div> : <Alert>{loadError}</Alert>}</Drawer>;
+  const mill = mills.find((m) => String(m.id) === String(form.mill_id));
 
-  if (loading || loadError) return <Drawer isOpen onClose={() => navigate('/dispatch')}>{loading ? <div className="p-12 text-center text-slate-500">Loading...</div> : <Alert>{loadError}</Alert>}</Drawer>;
+  const summary = (
+    <div className="flex items-center gap-4 lg:flex-col lg:items-stretch lg:gap-0">
+      <div className="grid flex-1 grid-cols-3 gap-3 lg:mb-4 lg:flex-none">
+        <div><div className="text-xs font-bold text-slate-500">Parts</div><div className="text-2xl font-bold tabular-nums text-slate-900">{valid.length}</div></div>
+        <div><div className="text-xs font-bold text-slate-500">Takas</div><div className={`text-2xl font-bold tabular-nums ${totals.takas ? 'text-primary-700' : 'text-slate-400'}`}>{totals.takas}</div></div>
+        <div><div className="text-xs font-bold text-slate-500">Meters</div><div className="text-2xl font-bold tabular-nums text-slate-900">{fmtM(totals.meters)}</div></div>
+      </div>
+      <Button type="button" className="h-12 shrink-0 text-base lg:w-full" disabled={busy || totals.takas === 0} onClick={review}>
+        <ShieldCheck className="mr-2 h-5 w-5" /> Save
+      </Button>
+    </div>
+  );
 
   return (
-    <Drawer isOpen={true} onClose={() => navigate('/dispatch')}>
-      <div className="space-y-6 max-w-5xl mx-auto">
-        <PageHeader title="New Mill Dispatch">
-          <Button variant="ghost" onClick={() => navigate('/dispatch')}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
-        </PageHeader>
+    <Drawer isOpen>
+      <div className="page-w-6xl space-y-6">
+        <PageHeader title="New Mill Challan" description="Sent against weaver challans — one sub-challan per weaver challan." onBack={() => navigate('/dispatch')} />
 
-        {!desktop && <StepTabs steps={['Dispatch details', 'Select takas']} step={step} onStep={goStep} />}
-
-      <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {(desktop || step === 1) && (
-          <Card className="p-5">
-            <h3 className="text-base font-semibold text-slate-900 mb-4">Dispatch details</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Destination Mill *">
-                <Select required value={formData.mill_id} onChange={e => setFormData(p => ({ ...p, mill_id: e.target.value }))}>
-                  <option value="">Select Mill...</option>
-                  {mills.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </Select>
-              </Field>
-              <Field label="Dispatch Date *">
-                <Input type="date" required value={formData.date} onChange={e => setFormData(p => ({ ...p, date: e.target.value }))} />
-              </Field>
-              <div className="sm:col-span-2">
-                <Field label="Notes (Optional)">
-                  <Input value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <Card className="p-5">
+              <h3 className="mb-4 text-base font-bold text-forest">Challan details</h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                <Field label="Destination mill *">
+                  <Select required value={form.mill_id} onChange={(e) => setForm((f) => ({ ...f, mill_id: e.target.value }))}>
+                    <option value="">Select Mill...</option>
+                    {mills.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </Select>
                 </Field>
+                <Field label="Date *"><Input type="date" required value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} /></Field>
+                <Field label="Challan no (auto, you can change it)"><Input type="number" min="1" step="1" value={form.main_no} onChange={(e) => setForm((f) => ({ ...f, main_no: e.target.value }))} /></Field>
+                <Field label="Notes (optional)"><Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} /></Field>
               </div>
-            </div>
-            {!desktop && (
-              <div className="mt-5 pt-5 border-t border-slate-100 flex items-center justify-between gap-3">
-                <Alert className="flex-1">{error}</Alert>
-                <Button type="button" className="ml-auto" onClick={() => goStep(2)}>Next: select takas <ArrowRight className="w-4 h-4 ml-2" /></Button>
-              </div>
-            )}
-          </Card>
-          )}
+            </Card>
 
-          {(desktop || step === 2) && (
-          <Card className="p-0 overflow-hidden">
-            <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row gap-4 justify-between items-center">
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-slate-900">Select Takas</h3>
-                <Badge variant="primary">{availableTakas.length} in Godown</Badge>
-              </div>
-              <Select className="w-full sm:w-44 bg-white" value={branchFilter} onChange={e => { setBranchFilter(e.target.value); setChallanFilter(''); }}>
-                <option value="">All branches</option>
-                {branches.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-              </Select>
-              <Select className="w-full sm:w-48 bg-white" value={qualityFilter} onChange={e => { setQualityFilter(e.target.value); setChallanFilter(''); }}>
-                <option value="">All Qualities</option>
-                {qualities.map(q => <option key={q.id} value={q.id}>{q.name}</option>)}
-              </Select>
-              <Select className="w-full sm:w-64 bg-white" value={challanFilter} onChange={e => setChallanFilter(e.target.value)}>
-                <option value="">All received challans</option>
-                {challans.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-              </Select>
+            <div>
+              <h3 className="mb-3 text-base font-bold text-forest">Weaver challans</h3>
+              <PartBuilder parts={parts} setParts={setParts} mainNo={form.main_no || '?'} challans={challans} error={error} setError={setError} />
             </div>
+            <Alert>{error}</Alert>
+          </div>
 
-            <div className="p-3 border-b border-slate-100 flex flex-wrap gap-2 items-center bg-white">
-              <Button type="button" variant="outline" size="sm" onClick={selectAllFiltered}>Select All Shown</Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => selectFirstN(10)}>Select 10</Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => selectFirstN(25)}>Select 25</Button>
-              <Button type="button" variant="ghost" size="sm" onClick={clearSelection}>Clear Selection</Button>
-            </div>
-
-            <div className="max-h-[500px] overflow-y-auto">
-              <Table>
-                <thead className="sticky top-0 bg-slate-50 shadow-sm z-10">
-                  <tr>
-                    <Th className="w-12 text-center">
-                      <input
-                        type="checkbox"
-                        className="rounded text-primary-600 focus:ring-primary-500"
-                        checked={filteredTakas.length > 0 && filteredTakas.every(t => selectedTakaIds.has(t.id))}
-                        onChange={(e) => e.target.checked ? selectAllFiltered() : clearSelection()}
-                      />
-                    </Th>
-                    <Th>Taka No</Th>
-                    <Th>Quality</Th>
-                    <Th>Meters</Th>
-                    <Th>Branch</Th>
-                    <Th>Location</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paged.rows.map(t => (
-                    <tr key={t.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => toggleTaka(t.id)}>
-                      <Td className="text-center">
-                        <input
-                          type="checkbox"
-                          className="rounded text-primary-600 focus:ring-primary-500 cursor-pointer"
-                          checked={selectedTakaIds.has(t.id)}
-                          readOnly
-                        />
-                      </Td>
-                      <Td className="font-medium text-slate-900">{t.challan_no}/{t.taka_no}</Td>
-                      <Td>{t.nick_name}</Td>
-                      <Td className="font-semibold text-slate-900">{fmtM(t.grey_meter)} m</Td>
-                      <Td>{t.branch_name || '—'}</Td>
-                      <Td>
-                        {t.location_id ? <span className="text-slate-600 text-sm">{repo.locLabel(t.shop, t.rack)}</span> : <span className="text-amber-600 text-xs font-medium">Unassigned</span>}
-                      </Td>
-                    </tr>
+          <div className="hidden lg:block">
+            <Card className="p-5 lg:sticky lg:top-6">
+              <h3 className="mb-4 text-base font-bold text-forest">Summary</h3>
+              {summary}
+              {valid.length > 0 && (
+                <ul className="mt-4 space-y-1.5 border-t border-slate-100 pt-4 text-sm">
+                  {valid.map((p, i) => (
+                    <li key={p.key} className="flex justify-between gap-2"><span className="font-semibold text-primary-700">{labels[i]}</span><span className="min-w-0 truncate text-slate-600">{p.receipt.challan_no}</span><span className="tabular-nums text-slate-900">{partTotals(p).takas} tk</span></li>
                   ))}
-                  {filteredTakas.length === 0 && (
-                    <tr>
-                      <Td colSpan={6} className="py-8">
-                        <Empty title="No takas available" description={qualityFilter ? "No takas matching this quality." : "Godown is empty."} />
-                      </Td>
-                    </tr>
-                  )}
-                </tbody>
-              </Table>
-            </div>
-            <Pager paged={paged} />
-          </Card>
-          )}
+                </ul>
+              )}
+            </Card>
+          </div>
         </div>
-
-        {(desktop || step === 2) && (
-        <div className="space-y-6">
-          <Card className="p-5 lg:sticky lg:top-6">
-            <h3 className="text-base font-semibold text-slate-900 mb-4">Dispatch summary</h3>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <div className="text-xs font-bold text-slate-500">Selected takas</div>
-                <div className={`text-3xl font-bold ${selectedTakaIds.size > 0 ? 'text-primary-700' : 'text-slate-400'}`}>
-                  {selectedTakaIds.size}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs font-bold text-slate-500">Total meters</div>
-                <div className={`text-2xl font-bold ${selectedTakaIds.size > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
-                  {selectedMeters.toFixed(2)}
-                </div>
-              </div>
-            </div>
-
-            {pickList.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-slate-200">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Picking list (where to take from)</div>
-                <div className="space-y-2 max-h-64 overflow-y-auto text-sm">
-                  {pickList.map(g => (
-                    <div key={g.key} className="bg-white rounded-lg border border-slate-200 p-2">
-                      <div className="flex justify-between font-medium"><span>{g.label}</span><span>{g.count} tk · {fmtM(g.meters)} m</span></div>
-                      <div className="text-xs text-slate-500 mt-1 break-words">{g.takas.map(t => `${t.challan_no}/${t.taka_no}`).join(', ')}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <Alert className="mt-4">{error}</Alert>
-
-            <div className="mt-6 pt-5 border-t border-slate-200 flex gap-3">
-              {!desktop && <Button type="button" variant="outline" onClick={() => setStep(1)}><ArrowLeft className="w-4 h-4 mr-2" /> Details</Button>}
-              <Button type="submit" className="flex-1 h-12 text-base" disabled={busy || selectedTakaIds.size === 0 || !formData.mill_id}>
-                <ShieldCheck className="w-5 h-5 mr-2" /> Send to Mill
-              </Button>
-            </div>
-          </Card>
-        </div>
-        )}
-      </form>
       </div>
 
-      <Modal isOpen={confirmOpen} onClose={() => !busy && setConfirmOpen(false)} title="Confirm mill dispatch" maxWidth="max-w-xl">
-        <DetailList items={[
-          { label: 'Mill', value: mills.find(m => String(m.id) === String(formData.mill_id))?.name },
-          { label: 'Date', value: fmtDate(formData.date) },
-          { label: 'Takas', value: selectedTakaIds.size },
-          { label: 'Total meters', value: `${fmtM(selectedMeters)} m` },
-          { label: 'Qualities', value: [...new Set(picked.map(t => t.nick_name))].join(', ') },
-          { label: 'Branches', value: [...new Set(picked.map(t => t.branch_name).filter(Boolean))].join(', ') },
-          { label: 'Pick from', value: `${pickList.length} rack${pickList.length === 1 ? '' : 's'}` },
-          { label: 'Notes', value: formData.notes, wide: true },
-        ]} />
+      {/* tablet / phone: sticky bottom bar */}
+      <ActionBar>{summary}</ActionBar>
+
+      <Modal isOpen={confirmOpen} onClose={() => !busy && setConfirmOpen(false)} title={`Confirm mill challan ${form.main_no}`} maxWidth="max-w-2xl">
+        <div className="mb-4 text-sm text-slate-600">To <strong className="text-slate-900">{mill?.name}</strong> on {fmtDate(form.date)}{form.notes ? ` · ${form.notes}` : ''}</div>
+        <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+          {valid.map((p, i) => (
+            <div key={p.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-sm">
+              <span className="font-bold text-primary-700">{labels[i]}</span>
+              <span className="text-slate-900">{p.receipt.challan_no}</span>
+              <span className="text-slate-600">{p.receipt.weaver_name} · {p.receipt.nick_name}</span>
+              <span className="ml-auto"><Qty variant="inline" takas={partTotals(p).takas} meters={partTotals(p).meters} /></span>
+            </div>
+          ))}
+          <div className="flex justify-between bg-slate-50 px-3 py-2.5 text-sm font-semibold"><span>Total — {valid.length} sub-challan{valid.length === 1 ? '' : 's'}</span><Qty variant="inline" takas={totals.takas} meters={totals.meters} /></div>
+        </div>
         <Alert className="mt-4">{error}</Alert>
         <div className="mt-6 flex justify-end gap-3">
           <Button type="button" variant="outline" disabled={busy} onClick={() => setConfirmOpen(false)}>Edit again</Button>
-          <Button type="button" disabled={busy} onClick={doSave}><ShieldCheck className="w-4 h-4 mr-2" />{busy ? 'Saving…' : 'Confirm & send'}</Button>
+          <Button type="button" disabled={busy} onClick={save}><ShieldCheck className="mr-2 h-4 w-4" />{busy ? 'Saving…' : 'Confirm & save'}</Button>
         </div>
       </Modal>
     </Drawer>

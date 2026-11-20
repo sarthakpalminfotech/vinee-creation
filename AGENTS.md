@@ -7,9 +7,9 @@ Project: **Vinee Creation** — textile trading ERP prototype (grey PO → weave
 ## Resume protocol ("dots")
 The work is split into small, independent **dots** (`specs/dots/Dxx-*.md`). Each dot has: Goal → Build → Checks → DoD.
 1. Read `specs/01-business.md` (domain), `specs/02-architecture.md` (stack/rules), `specs/03-data-model.md`.
-2. Open `specs/PROGRESS.md` → pick the first dot not `✅ Done`.
+2. Open `docs/PROGRESS.md` → pick the first dot not `✅ Done`.
 3. Build only that dot. Run its Checks. `npm run build` must pass.
-4. Update `specs/PROGRESS.md` (status + notes/decisions), commit `feat(Dxx): …`, push.
+4. Update `docs/PROGRESS.md` (status + notes/decisions), commit `feat(Dxx): …`, push.
 5. Never change business rules silently — record decisions in PROGRESS.md "Decisions log".
 
 ## Commands
@@ -21,5 +21,5 @@ npx vercel --prod --yes   # deploy
 
 ## Key files
 - `src/db/schema.js` · `src/db/seed.js` · `src/db/repo.js` (all data access)
-- `src/components/ui.jsx` (UI kit) · `src/layout/AppShell.jsx` (navigation)
+- `src/components/ui.jsx` (UI kit) · `src/components/AppShell.jsx` (navigation)
 - `src/pages/**` (one folder per module)

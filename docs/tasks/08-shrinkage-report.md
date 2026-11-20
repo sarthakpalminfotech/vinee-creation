@@ -1,18 +1,18 @@
-# Shrinkage report
+# Shrinkage report (shortage)
 
 **Rules:** R-SH-1..3
 
 ## What to do
-Per-taka chain and summaries by PO, party, quality, mill, program; direct takas start at mill grey.
+Shortage at the mill (grey − finished) and at folding (finished − folded), against grey; no weaver or transit figures; damage in its own column (groups and per taka) with a details modal.
 
 ## What to check
-Open Reports > Shrinkage; check a godown taka: grey - folded = total; a direct taka shows "direct" in weaver column and total = mill grey - folded/finished.
+Group totals equal the sum of per-taka figures; damage is not part of the folding shortage.
 
 ## Done when
-Numbers match a hand calculation; PO tab shows ordered vs received shrinkage.
+Report, print and dashboard card use the new chain and the word "shortage".
 
 ## Status
-Done (audit session 1, 2026-10-11). Automated coverage: `npm test`. See `docs/AUDIT.md` for the traceability row.
+Done (client changes 1).
 
 ## Files touched
-src/pages/reports/ShrinkagePage.jsx, src/db/repo.js (withLineage, shrinkageReport)
+src/pages/reports/ShrinkagePage.jsx, DashboardPage.jsx, src/db/repo.js

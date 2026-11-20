@@ -4,30 +4,34 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 222 47% 11%;
+    /* Vinee Creations "Emerald Heritage" tokens — see tailwind.config.js for the full palette */
+    --background: 72 24% 97%;          /* warm ivory  #F8F9F4 */
+    --foreground: 160 26% 15%;         /* text        #1C3029 */
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 160 26% 15%;
 
-    --primary: 342 64% 33%;
-    --primary-hover: 342 64% 29%;
-    --primary-active: 342 64% 25%;
-    --primary-soft: 342 60% 96%;
+    --primary: 162 69% 28%;            /* emerald     #16785B */
+    --primary-hover: 162 71% 23%;      /*             #11644B */
+    --primary-active: 162 69% 19%;
+    --primary-soft: 138 33% 94%;       /* soft mint   #EAF4ED */
     --primary-foreground: 0 0% 100%;
 
-    --accent: 46 68% 47%;
-    --accent-soft: 46 80% 94%;
-    --accent-foreground: 36 60% 20%;
+    --accent: 39 42% 59%;              /* champagne gold #C3A56A — brand accent only, never a button */
+    --accent-soft: 40 45% 93%;
+    --accent-foreground: 38 38% 30%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --border: 214 32% 91%;
-    --input: 214 28% 86%;
-    --ring: 342 64% 33%;
+    --muted: 120 17% 94%;
+    --muted-foreground: 150 9% 45%;    /* muted text  #687B71 */
+    --border: 136 22% 89%;             /* border      #DCE8DF */
+    --input: 138 17% 79%;
+    --ring: 162 69% 28%;               /* focus ring: emerald */
 
-    --destructive: 0 72% 45%;
-    --destructive-soft: 0 86% 97%;
+    --destructive: 11 43% 50%;         /* error       #B65D48 */
+    --destructive-soft: 12 52% 95%;
     --destructive-foreground: 0 0% 100%;
+
+    --forest: #123D32;
+    --gold: #C3A56A;
 
     --radius: 0.75rem;
   }
@@ -43,11 +47,66 @@
     overflow-x: hidden;
   }
 
+  /* iOS / iPadOS Safari renders date inputs with a native, intrinsically wide, grey, centred control
+     that overflows its grid cell. Normalise it so it looks like every other text field. */
+  input[type='date'] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    background-color: #fff;
+    text-align: left;
+    line-height: 1.25rem;
+  }
+  input[type='date']::-webkit-date-and-time-value {
+    text-align: left;
+    min-height: 1.25rem;
+    margin: 0;
+  }
+  input[type='date']::-webkit-datetime-edit {
+    padding: 0;
+  }
+
+  /* native radios / checkboxes in brand emerald, finger-sized */
+  input[type="radio"], input[type="checkbox"] {
+    accent-color: #16785B;
+    width: 1.25rem;
+    height: 1.25rem;
+    cursor: pointer;
+  }
+
+  ::selection {
+    background: #A9C8B4;
+    color: #123D32;
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: #93A69B;
+  }
+
   :focus-visible {
     outline: none;
     box-shadow: 0 0 0 1px hsl(var(--background)), 0 0 0 3px hsl(var(--ring) / 0.4);
   }
 }
+
+/* Touch: no grey flash on tap, no 300ms delay, no accidental double-tap zoom on controls. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+button, a, [role="button"], input, select, textarea, label {
+  touch-action: manipulation;
+}
+
+/* Thin, quiet scrollbars where a region scrolls on its own (sidebar, tables). */
+.thin-scroll { scrollbar-width: thin; scrollbar-color: #C2D3C7 transparent; }
+.thin-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.thin-scroll::-webkit-scrollbar-thumb { background: #C2D3C7; border-radius: 999px; }
+.dark-scroll { scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / 0.18) transparent; }
+.dark-scroll::-webkit-scrollbar { width: 6px; }
+.dark-scroll::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 0.18); border-radius: 999px; }
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
@@ -68,4 +127,23 @@
   .print-drawer > .print-drawer-panel { width: 100% !important; height: auto !important; overflow: visible !important; box-shadow: none !important; background: #fff !important; }
   .print-hide-view { display: none !important; }
   .print-page-break { break-before: page; }
+  /* document preview overlay → print just the sheet */
+  body:has(.doc-preview) #root { display: none !important; }
+  .doc-preview { position: static !important; display: block !important; background: #fff !important; }
+  .doc-toolbar { display: none !important; }
+  .doc-scroll { overflow: visible !important; padding: 0 !important; }
+  .doc-scroll > div { width: auto !important; height: auto !important; }
+  [data-doc-scale] { transform: none !important; width: auto !important; }
+  .doc-sheet { width: auto !important; min-height: 0 !important; padding: 0 !important; box-shadow: none !important; }
+}
+
+/* R-UI-3: page width. Below 1280px the old narrow columns stay exactly as they were (tablet layouts);
+   from xl up the page uses the full content width, capped at 1800px so huge monitors stay readable. */
+.page-w, .page-w-3xl, .page-w-4xl, .page-w-5xl, .page-w-6xl { margin-left: auto; margin-right: auto; width: 100%; }
+.page-w, .page-w-5xl { max-width: 64rem; }
+.page-w-3xl { max-width: 48rem; }
+.page-w-4xl { max-width: 56rem; }
+.page-w-6xl { max-width: 72rem; }
+@media (min-width: 1280px) {
+  .page-w, .page-w-3xl, .page-w-4xl, .page-w-5xl, .page-w-6xl { max-width: 1800px; }
 }

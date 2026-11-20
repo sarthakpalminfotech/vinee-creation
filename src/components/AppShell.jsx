@@ -1,223 +1,171 @@
 import React, { useEffect, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
-import { Home, Database, Scissors, Truck, ShoppingCart, Settings, Menu, X, CheckCircle, Store, Palette, MapPin, Boxes, TrendingDown, SearchCheck } from 'lucide-react';
-import { Modal, Button, Input, Select } from './ui';
-import { resetDemo, getDeadStockDays, setDeadStockDays } from '../db/repo';
-import { mode, exportBackup } from '../db/client';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import ErrorBoundary from './ErrorBoundary';
+import { Home, Database, Scissors, Truck, ShoppingCart, Settings, Menu, X, CheckCircle, Store, Palette, Boxes, TrendingDown, SearchCheck, Hammer } from 'lucide-react';
+import logo from '../assets/logo.png';
 
-const DEAD_PRESETS = [
-  { label: '1 day', days: 1 }, { label: '1 week', days: 7 }, { label: '1 month', days: 30 },
-  { label: '3 months', days: 90 }, { label: '6 months', days: 180 }, { label: '1 year', days: 365 },
+// Grouped the way the goods move: sales → grey → processing → stock. Setup (masters, settings) sits at the bottom.
+// `short` is the label under the icon on the tablet rail (portrait), where only ~10 characters fit.
+// Sized so the whole menu fits a landscape tablet (≈ 750 px tall) without scrolling.
+const NAV_GROUPS = [
+  { label: '', items: [
+    { path: '/', label: 'Dashboard', short: 'Home', icon: Home },
+  ] },
+  { label: 'Sales', items: [
+    { path: '/orders', label: 'Orders', short: 'Orders', icon: ShoppingCart },
+    { path: '/availability', label: 'Availability', short: 'Availability', icon: SearchCheck },
+  ] },
+  { label: 'Grey', items: [
+    { path: '/po', label: 'Grey PO', short: 'Grey PO', icon: Store },
+    { path: '/receipts', label: 'Grey Challan', short: 'Challan', icon: CheckCircle },
+  ] },
+  { label: 'Processing', items: [
+    { path: '/dispatch', label: 'Mill Dispatch', short: 'Dispatch', icon: Truck },
+    { path: '/programs', label: 'Dyeing', short: 'Dyeing', icon: Palette },
+    { path: '/folding', label: 'Folding', short: 'Folding', icon: Scissors },
+    { path: '/job-work', label: 'Job Work', short: 'Job Work', icon: Hammer },
+  ] },
+  { label: 'Stock & reports', items: [
+    { path: '/inventory', label: 'Inventory', short: 'Inventory', icon: Boxes },
+    { path: '/reports/shrinkage', label: 'Shrinkage Report', short: 'Shrinkage', icon: TrendingDown },
+  ] },
 ];
-const UNITS = { days: 1, weeks: 7, months: 30, years: 365 };
+const SETUP = [
+  { path: '/masters', label: 'Masters', short: 'Masters', icon: Database },
+  { path: '/settings', label: 'Settings', short: 'Settings', icon: Settings },
+];
 
-/** Settings block: after how long without movement finished goods count as dead stock. */
-function DeadStockSetting() {
-  const [days, setDays] = useState(null);
-  const [amount, setAmount] = useState('');
-  const [unit, setUnit] = useState('days');
-  const [error, setError] = useState('');
-  useEffect(() => { getDeadStockDays().then(setDays).catch((e) => setError(e.message)); }, []);
-  const save = async (d) => {
-    try { setError(''); setDays(await setDeadStockDays(d)); } catch (e) { setError(e.message); }
-  };
-  const preset = DEAD_PRESETS.find((p) => p.days === days);
+function Brand({ compact = false }) {
+  if (compact) return <img src={logo} alt="Vinee Creations" className="w-12 h-12 rounded-full shadow-md ring-1 ring-gold/40" />;
   return (
-    <div className="p-4 border border-slate-200 rounded-lg space-y-3">
-      <div>
-        <div className="font-semibold text-slate-900">Dead stock</div>
-        <div className="text-sm text-slate-600">Finished goods with no movement for <strong className="text-slate-900">{days ?? '…'} {days === 1 ? 'day' : 'days'}</strong>{preset ? ` (${preset.label})` : ''} or more</div>
+    <div className="flex items-center gap-3 min-w-0">
+      <img src={logo} alt="" className="w-11 h-11 shrink-0 rounded-full shadow-md ring-1 ring-gold/40" />
+      <div className="min-w-0 leading-tight">
+        <div className="font-display text-[17px] font-extrabold tracking-[0.14em] text-white">VINEE</div>
+        <div className="text-[10px] font-semibold tracking-[0.2em] text-gold-light">CREATIONS ERP</div>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {DEAD_PRESETS.map((p) => (
-          <button key={p.days} type="button" onClick={() => save(p.days)}
-            className={`h-10 px-3 rounded-md border text-sm font-medium ${days === p.days ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}>{p.label}</button>
-        ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Input type="number" min="1" className="w-24" placeholder="Custom" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        <Select className="w-32" value={unit} onChange={(e) => setUnit(e.target.value)}>
-          {Object.keys(UNITS).map((u) => <option key={u} value={u}>{u}</option>)}
-        </Select>
-        <Button type="button" variant="outline" disabled={!amount} onClick={() => { save(Math.round(Number(amount) * UNITS[unit])); setAmount(''); }}>Set</Button>
-      </div>
-      {error && <div className="text-sm text-red-600">{error}</div>}
     </div>
   );
 }
 
-const NAV_ITEMS = [
-  { path: '/', label: 'Dashboard', icon: Home },
-  { path: '/orders', label: 'Orders', icon: ShoppingCart },
-  { path: '/po', label: 'Grey PO', icon: Store },
-  { path: '/receipts', label: 'Grey Challan', icon: CheckCircle },
-  { path: '/dispatch', label: 'Mill Dispatch', icon: Truck },
-  { path: '/programs', label: 'Dyeing', icon: Palette },
-  { path: '/folding', label: 'Folding', icon: Scissors },
-  { path: '/inventory', label: 'Inventory', icon: Boxes },
-  { path: '/assignment', label: 'Rack/Godown', icon: MapPin },
-  { path: '/availability', label: 'Availability', icon: SearchCheck },
-  { path: '/reports/shrinkage', label: 'Shrinkage Report', icon: TrendingDown },
-  { path: '/masters/weavers', label: 'Masters', icon: Database },
-];
+/** Full sidebar row (landscape tablets, desktops, phone drawer). */
+function SideLink({ item, onClick }) {
+  return (
+    <NavLink
+      to={item.path}
+      end={item.path === '/'}
+      onClick={onClick}
+      className={({ isActive }) =>
+        `flex items-center gap-3 h-10 px-3 rounded-lg text-[14px] font-medium transition-colors ${
+          isActive ? 'bg-forest-lighter text-white shadow-sm' : 'text-white/70 hover:bg-forest-light hover:text-white'
+        }`
+      }
+    >
+      <item.icon className="w-5 h-5 shrink-0" strokeWidth={1.9} />
+      <span className="truncate">{item.label}</span>
+    </NavLink>
+  );
+}
+
+/** Icon-over-label tile on the tablet rail (portrait). */
+function RailLink({ item }) {
+  return (
+    <NavLink
+      to={item.path}
+      end={item.path === '/'}
+      className={({ isActive }) =>
+        `flex flex-col items-center justify-center gap-1 h-[60px] w-full rounded-xl text-[11px] font-medium leading-none transition-colors ${
+          isActive ? 'bg-forest-lighter text-white shadow-sm' : 'text-white/65 hover:bg-forest-light hover:text-white'
+        }`
+      }
+    >
+      <item.icon className="w-[22px] h-[22px]" strokeWidth={1.9} />
+      <span className="max-w-full truncate px-1">{item.short}</span>
+    </NavLink>
+  );
+}
+
+function SideNav({ onNavigate }) {
+  return (
+    <>
+      <nav className="flex-1 overflow-y-auto dark-scroll px-3 py-3">
+        {NAV_GROUPS.map((g) => (
+          <div key={g.label || 'home'} className="mb-2">
+            {g.label && <div className="px-3 pt-1.5 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-white/45">{g.label}</div>}
+            <div className="space-y-0.5">{g.items.map((item) => <SideLink key={item.path} item={item} onClick={onNavigate} />)}</div>
+          </div>
+        ))}
+      </nav>
+      <div className="px-3 py-2.5 border-t border-white/10 space-y-0.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]">
+        {SETUP.map((item) => <SideLink key={item.path} item={item} onClick={onNavigate} />)}
+      </div>
+    </>
+  );
+}
 
 export function AppShell() {
+  const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsError, setSettingsError] = useState('');
+  const navigate = useNavigate();
   // other screens can open the settings (e.g. the dead-stock rule on the Inventory page)
   useEffect(() => {
-    const open = () => setSettingsOpen(true);
+    const open = () => navigate('/settings');
     window.addEventListener('vinee:open-settings', open);
     return () => window.removeEventListener('vinee:open-settings', open);
-  }, []);
-
-  const handleBackup = async () => {
-    try {
-      const bytes = await exportBackup();
-      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
-      const a = document.createElement('a');
-      a.href = url; a.download = `vinee-backup-${new Date().toISOString().slice(0, 10)}.sqlite`; a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) { setSettingsError(e.message); }
-  };
-
-  const handleReset = async () => {
-    if (confirm('Reset all demo data? This will clear everything.')) {
-      await resetDemo();
-      window.location.href = '/';
-    }
-  };
+  }, [navigate]);
+  useEffect(() => { setMobileMenuOpen(false); }, [location.pathname]);
 
   return (
-    <div className="app-root flex h-screen bg-slate-50 overflow-hidden font-sans text-slate-900">
-      {/* Desktop Sidebar */}
-      <aside className="print:hidden hidden lg:flex flex-col w-64 border-r border-slate-200 bg-white shadow-sm">
-        <div className="h-16 flex items-center px-6 border-b border-slate-100">
-          <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400">
-            Vinee Creation
-          </div>
-        </div>
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-          {NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  isActive
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`
-              }
-            >
-              <item.icon className="w-5 h-5" />
-              {item.label}
-            </NavLink>
+    <div className="app-root flex h-[100dvh] bg-ivory overflow-hidden font-sans text-slate-900">
+      {/* Tablet portrait (768–1023): slim forest rail, always visible — every module one tap away */}
+      <aside className="print:hidden hidden md:flex lg:hidden flex-col items-center w-[92px] shrink-0 bg-forest pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <NavLink to="/" className="mb-3 shrink-0" aria-label="Dashboard"><Brand compact /></NavLink>
+        <nav className="flex-1 w-full overflow-y-auto dark-scroll px-2 space-y-1">
+          {NAV_GROUPS.map((g, gi) => (
+            <React.Fragment key={g.label}>
+              {gi > 0 && <div className="mx-4 my-1.5 h-px bg-white/10" />}
+              {g.items.map((item) => <RailLink key={item.path} item={item} />)}
+            </React.Fragment>
           ))}
         </nav>
-        <div className="p-4 border-t border-slate-100">
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 w-full transition-colors"
-          >
-            <Settings className="w-5 h-5" />
-            Settings
-          </button>
-        </div>
+        <div className="w-full px-2 pt-2 mt-1 border-t border-white/10 space-y-1">{SETUP.map((item) => <RailLink key={item.path} item={item} />)}</div>
       </aside>
 
-      {/* Mobile Header & Content */}
+      {/* Tablet landscape and desktop (≥1024): full forest sidebar */}
+      <aside className="print:hidden hidden lg:flex flex-col w-60 shrink-0 bg-forest pt-[env(safe-area-inset-top)]">
+        <NavLink to="/" className="h-[72px] shrink-0 flex items-center px-5 border-b border-white/10"><Brand /></NavLink>
+        <SideNav />
+      </aside>
+
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="print:hidden lg:hidden flex items-center h-14 px-4 bg-white border-b border-slate-200">
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 -ml-2 mr-2 text-slate-600">
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        {/* Phone: forest top bar + drawer */}
+        <header className="print:hidden md:hidden flex items-center gap-3 h-14 px-3 bg-forest pt-[env(safe-area-inset-top)] box-content">
+          <button type="button" onClick={() => setMobileMenuOpen(true)} aria-label="Open menu" className="w-11 h-11 grid place-items-center rounded-lg text-white/85 hover:bg-forest-light">
+            <Menu className="w-6 h-6" />
           </button>
-          <div className="text-lg font-bold text-primary-600">Vinee Creation</div>
+          <img src={logo} alt="" className="w-8 h-8 rounded-full ring-1 ring-gold/40" />
+          <div className="font-display text-[15px] font-extrabold tracking-[0.12em] text-white">VINEE <span className="text-gold-light font-semibold">CREATIONS</span></div>
         </header>
 
-        {/* Mobile Menu Overlay */}
         {mobileMenuOpen && (
-          <div className="lg:hidden fixed inset-0 z-50 flex">
-            <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
-            <div className="relative flex-1 flex flex-col max-w-[280px] w-full bg-white shadow-2xl h-full animate-in slide-in-from-left duration-200">
-              <div className="h-14 flex items-center justify-between px-4 border-b border-slate-100">
-                <div className="text-lg font-bold text-primary-600">Menu</div>
-                <button onClick={() => setMobileMenuOpen(false)} className="p-2 -mr-2 text-slate-400 hover:text-slate-600">
+          <div className="md:hidden fixed inset-0 z-50 flex">
+            <div className="fixed inset-0 bg-forest-dark/40 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+            <div className="relative flex flex-col w-[280px] max-w-[85vw] bg-forest shadow-2xl h-full animate-in slide-in-from-left duration-200">
+              <div className="h-[72px] shrink-0 flex items-center justify-between pl-5 pr-2 border-b border-white/10">
+                <Brand />
+                <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu" className="w-11 h-11 grid place-items-center rounded-lg text-white/70 hover:bg-forest-light hover:text-white">
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-                {NAV_ITEMS.map((item) => (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium ${
-                        isActive ? 'bg-primary-50 text-primary-700' : 'text-slate-600'
-                      }`
-                    }
-                  >
-                    <item.icon className="w-5 h-5" />
-                    {item.label}
-                  </NavLink>
-                ))}
-                <div className="pt-2 mt-2 border-t border-slate-100">
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      setSettingsOpen(true);
-                    }}
-                    className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-slate-600 w-full"
-                  >
-                    <Settings className="w-5 h-5" />
-                    Settings
-                  </button>
-                </div>
-              </nav>
+              <SideNav onNavigate={() => setMobileMenuOpen(false)} />
             </div>
           </div>
         )}
 
-        <main className="app-main flex-1 overflow-y-auto p-4 sm:p-5 md:p-6 xl:p-8">
-          <Outlet />
+        <main className="app-main flex-1 overflow-y-auto thin-scroll p-4 sm:p-5 md:px-7 md:py-6 xl:p-8 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <ErrorBoundary key={location.pathname + location.search}><Outlet /></ErrorBoundary>
         </main>
       </div>
-
-      <Modal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="System Settings">
-        <div className="space-y-4">
-          <DeadStockSetting />
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-            <div>
-              <div className="font-medium text-slate-900">Storage Mode</div>
-              <div className="text-sm text-slate-500">{mode === 'turso' ? 'Remote database (Turso)' : 'Local IndexedDB (this browser only)'}</div>
-            </div>
-            <div className="px-2 py-1 text-xs font-semibold bg-primary-100 text-primary-700 rounded">
-              {mode === 'turso' ? 'REMOTE' : 'LOCAL'}
-            </div>
-          </div>
-          {settingsError && <div className="text-sm text-red-600">{settingsError}</div>}
-          {mode === 'local' ? (
-            <>
-              <button
-                onClick={handleBackup}
-                className="w-full py-2.5 px-4 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
-              >
-                Download database backup
-              </button>
-              <button
-                onClick={handleReset}
-                className="w-full py-2.5 px-4 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
-              >
-                Reset Demo Data
-              </button>
-            </>
-          ) : (
-            <div className="text-xs text-slate-500">Reset is disabled on a remote database.</div>
-          )}
-        </div>
-      </Modal>
     </div>
   );
 }

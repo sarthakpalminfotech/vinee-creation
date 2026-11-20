@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { PageHeader, Card, Button, Input, Select, Badge, Empty, Table, Th, Td, LoadState, Pager, usePaged } from '../../components/ui';
 import { fmtM, fmtPct, fmtDate } from '../../lib/format';
 import { Plus, FileText } from 'lucide-react';
@@ -14,7 +14,8 @@ export default function PoListPage() {
   const [pos, setPos] = useState([]);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [flt, setFlt] = useState({});
+  const [params] = useSearchParams();
+  const [flt, setFlt] = useState(() => (params.get('quality') ? { quality_id: params.get('quality') } : {})); // ?quality=ID comes from the availability panel
 
   const dbVersion = useDbVersion();
   useEffect(() => {
@@ -46,7 +47,7 @@ export default function PoListPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Grey Purchase Orders" description="Manage all fabric orders placed to weavers.">
-        <ListFilter values={flt} onChange={setFlt} fields={[{ key: 'status', label: 'Status', options: Object.entries(repo.PO_STATUS_META).map(([k, v]) => [k, v.label]) }, { key: 'group_id', label: 'Party group', options: uniqueOptions(pos, (x) => x.group_id, (x) => x.group_name) }, { key: 'quality_id', label: 'Quality', options: uniqueOptions(pos, (x) => x.quality_id, (x) => x.nick_name) }]} />
+        <ListFilter values={flt} onChange={setFlt} fields={[{ key: 'status', label: 'Status', options: Object.entries(repo.PO_STATUS_META).map(([k, v]) => [k, v.label]) }, { key: 'group_id', label: 'Firm', options: uniqueOptions(pos, (x) => x.group_id, (x) => x.group_name) }, { key: 'quality_id', label: 'Quality', options: uniqueOptions(pos, (x) => x.quality_id, (x) => x.nick_name) }]} />
         <SearchToggle value={search} onChange={setSearch} placeholder="Search PO, weaver, or quality..." />
         <ViewToggle mode={viewMode} onChange={setViewMode} />
         <Button onClick={() => navigate('/po/new')}><Plus className="w-4 h-4 mr-2" /> Create PO</Button>
@@ -55,7 +56,7 @@ export default function PoListPage() {
       {viewMode === 'card' ? (
         <>
           {filtered.length === 0 ? <Empty title="No POs found" description="Create a new PO or change your filters." /> : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
               {paged.rows.map(p => (
                 <button key={p.id} type="button" onClick={() => navigate(`/po/${p.id}`)}
                   className="text-left rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-primary-300 transition">
@@ -97,7 +98,7 @@ export default function PoListPage() {
             <tr>
               <Th>PO Number</Th>
               <Th>Date</Th>
-              <Th>Party Group</Th>
+              <Th>Firm</Th>
               <Th>Quality</Th>
               <Th className="text-right">Meters</Th>
               <Th>Progress</Th>

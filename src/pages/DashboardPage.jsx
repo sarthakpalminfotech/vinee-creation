@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Button, Table, Th, Td } from '../components/ui';
-import { Plus, TrendingUp, Package, Scissors, CheckCircle, Truck, ShoppingCart } from 'lucide-react';
+import { Plus, TrendingUp, Package, Scissors, CheckCircle, Truck, ShoppingCart, BellRing } from 'lucide-react';
 import * as repo from '../db/repo';
 import { useDbVersion } from '../lib/live';
 import { Qty } from '../components/kit';
-import { fmtM } from '../lib/format';
+import { fmtM, fmtMoney } from '../lib/format';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ export default function DashboardPage() {
   if (error) return <div className="p-12 text-center text-red-600">{error}</div>;
   if (!data) return <div className="p-12 text-center text-slate-500">Loading...</div>;
 
-  const { status, openPoCount, pendingPoM, wastage, openOrders, activity } = data;
+  const { status, openPoCount, pendingPoM, shortage, activity, paymentsDue } = data;
   
   const StatCard = ({ title, value, unit, sub, icon: Icon, colorClass, link }) => (
     <Card className="p-6 cursor-pointer hover:shadow-md transition-shadow group" onClick={() => link && navigate(link)}>
@@ -46,7 +46,14 @@ export default function DashboardPage() {
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {paymentsDue?.count > 0 && (
+        <button type="button" onClick={() => navigate('/orders?payment=due')} className="flex w-full items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-left hover:bg-red-100">
+          <BellRing className="h-5 w-5 shrink-0 text-red-600" />
+          <span className="text-sm text-red-800"><strong>{paymentsDue.count} order{paymentsDue.count === 1 ? '' : 's'}</strong> with payment due{paymentsDue.amount > 0 ? <> · <strong>{fmtMoney(paymentsDue.amount)}</strong> to collect</> : ''} — no payment logged within the reminder time.</span>
+        </button>
+      )}
+
+      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <StatCard 
           title="Open POs" 
           value={openPoCount} unit="POs"
@@ -83,7 +90,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Pipeline Breakdown</h3>
+            <h3 className="text-lg font-bold text-forest mb-4">Pipeline Breakdown</h3>
             <div className="space-y-3 text-sm">
               {[
                 { s: 'GODOWN_GREY', label: 'Godown Grey', color: 'bg-slate-400' },
@@ -91,6 +98,7 @@ export default function DashboardPage() {
                 { s: 'IN_DYEING', label: 'In Dyeing', color: 'bg-violet-500' },
                 { s: 'FINISHED', label: 'Finished (Unfolded)', color: 'bg-amber-500' },
                 { s: 'FOLDED', label: 'Ready for Sale', color: 'bg-emerald-500' },
+                { s: 'JOB_WORK', label: 'At Job Worker', color: 'bg-orange-500' },
               ].map(stage => {
                 const count = status[stage.s]?.c || 0;
                 return (
@@ -107,33 +115,33 @@ export default function DashboardPage() {
           </Card>
           
           <Card className="p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Wastage Analytics</h3>
-            {wastage.count === 0 ? (
-              <p className="text-sm text-slate-500">Not enough folded takas for average wastage calculation.</p>
+            <h3 className="text-lg font-bold text-forest mb-4">Shortage Analytics</h3>
+            {shortage.count === 0 ? (
+              <p className="text-sm text-slate-500">Not enough folded takas for an average shortage calculation.</p>
             ) : (
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-500">Weaver (vs nominal length)</span>
-                    <span className="font-medium text-slate-900">{wastage.weaver.toFixed(2)}%</span>
+                    <span className="text-slate-500">Shortage at the mill</span>
+                    <span className="font-medium text-slate-900">{shortage.mill.toFixed(2)}%</span>
                   </div>
                   <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-red-400 rounded-full" style={{ width: `${Math.min(100, Math.max(0, wastage.weaver * 5))}%` }} />
+                    <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.min(100, Math.max(0, shortage.mill * 5))}%` }} />
                   </div>
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-500">Dyeing Loss</span>
-                    <span className="font-medium text-slate-900">{wastage.finish.toFixed(2)}%</span>
+                    <span className="text-slate-500">Shortage at folding</span>
+                    <span className="font-medium text-slate-900">{shortage.fold.toFixed(2)}%</span>
                   </div>
                   <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.min(100, Math.max(0, wastage.finish * 5))}%` }} />
+                    <div className="h-full bg-rose-400 rounded-full" style={{ width: `${Math.min(100, Math.max(0, shortage.fold * 5))}%` }} />
                   </div>
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-500">Total Pipeline Shrinkage</span>
-                    <span className="font-bold text-slate-900">{wastage.total.toFixed(2)}%</span>
+                    <span className="text-slate-500">Total shortage (grey to folded)</span>
+                    <span className="font-bold text-slate-900">{shortage.total.toFixed(2)}%</span>
                   </div>
                 </div>
               </div>
@@ -143,7 +151,7 @@ export default function DashboardPage() {
 
       {/* recent activity comes last */}
         <Card className="p-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-6">Recent Activity</h3>
+          <h3 className="text-lg font-bold text-forest mb-6">Recent Activity</h3>
           <div className="space-y-4">
             {activity.map((act, i) => (
               <div key={i} className="flex gap-4 items-start p-3 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors" onClick={() => navigate(act.to)}>

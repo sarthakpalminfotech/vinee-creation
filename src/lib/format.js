@@ -31,3 +31,27 @@ export function groupBy(arr, keyFn) {
   }
   return [...map.entries()].map(([key, items]) => ({ key, items }))
 }
+
+/** Whole days from date `d` (YYYY-MM-DD) to `now` (a Date, default today). */
+export const daysBetween = (d, now = new Date()) => {
+  const a = new Date(`${d}T00:00:00`), b = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return Math.round((b - a) / 864e5)
+}
+/** "today", "yesterday", "12 days ago", "3 months ago", "2 years ago" — or "—" without a date. */
+export function relativeDay(d, now = new Date()) {
+  if (!d) return '—'
+  const n = daysBetween(d, now)
+  if (n <= 0) return n === 0 ? 'today' : `in ${-n} day${n === -1 ? '' : 's'}`
+  if (n === 1) return 'yesterday'
+  if (n < 30) return `${n} days ago`
+  if (n < 365) { const m = Math.floor(n / 30); return `${m} month${m === 1 ? '' : 's'} ago` }
+  const y = Math.floor(n / 365)
+  return `${y} year${y === 1 ? '' : 's'} ago`
+}
+/** "Last program 12 days ago · Last order 3 days ago", or "Never used". */
+export function lastUsedText(c, now = new Date()) {
+  const parts = []
+  if (c.last_program) parts.push(`Last program ${relativeDay(c.last_program, now)}`)
+  if (c.last_order) parts.push(`Last order ${relativeDay(c.last_order, now)}`)
+  return parts.length ? parts.join(' · ') : 'Never used'
+}

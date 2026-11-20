@@ -1,18 +1,20 @@
-# Mill program
+# Dyeing program
 
 **Rules:** R-PG-1..4
 
 ## What to do
-Program for mill + quality + chart; total check; shades split adds up; only grey at that mill; PDF shows shade colours, takas and meters.
+Issue a program against weaver challans: step 1 mill / date / notes; step 2 cards of one weaver challan each (quality → weaver → challan, tap takas, choose a colour sheet, assigned list, Done / Edit / Remove), summary (right column on desktop, sticky bar on tablet), confirm grouped by quality → challan → colour. "Add more takas" on a program that is not Done. Program detail grouped quality → challan → colour with lots and taka lists; mill-facing PDF with swatch/photo and column-block taka lists.
 
 ## What to check
-Program 48 takas: 24 x 37 + 24 x 39 -> PDF swatches; asking for more than available -> error; split not equal to total -> blocked.
+Takas of another mill / another receipt, inactive or unlinked colours and duplicate takas are rejected and a failed save leaves no rows; adding extends the same challan + colour line; a Done program refuses additions; 500 takas within 20 statements; old programs still readable.
 
 ## Done when
-Takas move to IN_DYEING atomically; duplicate shade lines blocked.
+tests/e2e.mjs "client changes 3" passes in both drivers.
 
 ## Status
-Done (audit session 1, 2026-10-11). Automated coverage: `npm test`. See `docs/AUDIT.md` for the traceability row.
+Done (client changes 3).
 
 ## Files touched
-src/pages/programs/CreateProgramPage.jsx, ProgramDetailPage.jsx, src/db/repo.js (createProgram)
+src/pages/programs/*, src/components/TakaGrid.jsx, src/db/repo.js, src/db/schema.js
+## Round 4: In mill
+Folding → *In mill* lists programs with takas still in dyeing by mill and opens Receive from mill in the restricted folding mode (SPEC R-FD-5). The program detail keeps the full receive route.

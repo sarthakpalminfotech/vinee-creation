@@ -9,10 +9,12 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Vinee Creation',
+        name: 'Vinee Creations ERP',
         short_name: 'Vinee',
-        description: 'Vinee Creation Web App',
-        theme_color: '#ffffff',
+        description: 'Vinee Creations textile trading ERP',
+        theme_color: '#123D32',
+        background_color: '#F8F9F4',
+        display: 'standalone',
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -23,6 +25,12 @@ export default defineConfig({
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png'
+          },
+          {
+            src: 'maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
       }

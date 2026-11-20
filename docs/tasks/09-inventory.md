@@ -1,18 +1,22 @@
 # Inventory
 
-**Rules:** sec 2.10
+**Rules:** R-INV (SPEC Inventory)
 
 ## What to do
-Four stock views with filters and a reconciliation banner.
+Four views; grey at our place by branch only; finished goods in sellable meters with a "Damaged" filter and damage tags / details.
 
 ## What to check
-Open Inventory: the four counts add up to active takas; filter by quality / party group / party / mill / shade / rack.
+Views reconcile; no rack column or filter.
 
 ## Done when
-Totals equal the sum of rows; reconciliation banner green.
+inventoryCounts().reconciled stays true after folding with damage and after allocation.
 
 ## Status
-Done (audit session 1, 2026-10-11). Automated coverage: `npm test`. See `docs/AUDIT.md` for the traceability row.
+Done (client changes 1).
 
 ## Files touched
-src/pages/inventory/InventoryPage.jsx, src/db/repo.js (inventoryCounts, inventoryList)
+src/pages/inventory/*, src/db/repo.js
+
+**Client changes 2:** fifth stage tile *FG in job work* (`/inventory/jobwork/:qualityId`), plain / job-worked filter on finished goods, job-worked chips on finished cards, Withdraw chooser, Sell history and Withdrawals modes. Reconciliation: godown + mill + dyeing + finished + job work = all active takas.
+## Round 4: Sell to order
+Withdraw chooser → Finished goods → *Sell to order* (`/inventory/withdraw/fg-order`). Pick an open order (search, customer / quality filters, `?order=`), adjust takas / meters per line, preview the picked takas, confirm in one transaction, success screen with *Open order* / *Back to inventory*. Rule: SPEC R-SO-4.

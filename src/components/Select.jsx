@@ -142,8 +142,8 @@ function DropdownCore({
               }
             }}
             className={cn(
-              'flex h-11 min-w-0 w-full items-center justify-between gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm transition-colors hover:border-slate-400 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500',
-              open && 'border-primary-500 ring-1 ring-primary-500',
+              'flex h-11 min-w-0 w-full items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-[15px] transition-colors hover:border-sage focus:outline-none focus:border-primary-600 focus:ring-[3px] focus:ring-primary-600/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500',
+              open && 'border-primary-600 ring-[3px] ring-primary-600/20',
               invalid && !open && 'border-red-400',
               triggerClassName
             )}
@@ -167,7 +167,7 @@ function DropdownCore({
               (searchable ? searchRef.current : listRef.current)?.focus({ preventScroll: true });
             }}
             onKeyDown={onKeyDown}
-            className="z-[150] flex w-[var(--radix-popover-trigger-width)] min-w-[200px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg outline-none animate-in fade-in-0 zoom-in-[0.98]"
+            className="z-[150] flex w-[var(--radix-popover-trigger-width)] min-w-[200px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-pop outline-none animate-in fade-in-0 zoom-in-[0.98]"
             style={{ maxHeight: 'min(340px, var(--radix-popover-content-available-height))' }}
           >
             {searchable && (
@@ -186,7 +186,7 @@ function DropdownCore({
                     aria-controls={listId}
                     aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
                     autoComplete="off"
-                    className="h-9 w-full rounded-md bg-slate-50 pl-9 pr-3 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                    className="h-11 w-full rounded-lg bg-slate-50 pl-9 pr-3 text-base placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-600/20"
                   />
                   {loading && (
                     <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" aria-hidden />
@@ -220,9 +220,9 @@ function DropdownCore({
                       onMouseMove={() => active !== i && setActive(i)}
                       onClick={() => pick(option)}
                       className={cn(
-                        'mx-1.5 flex cursor-pointer select-none items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-slate-800',
-                        i === active && 'bg-slate-100',
-                        selected && 'bg-primary-50 text-primary-700',
+                        'mx-1.5 flex min-h-[44px] cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium text-slate-800',
+                        i === active && 'bg-primary-50/70',
+                        selected && 'bg-primary-50 text-primary-800',
                         selected && i === active && 'bg-primary-100',
                         option.disabled && 'cursor-not-allowed opacity-50'
                       )}
